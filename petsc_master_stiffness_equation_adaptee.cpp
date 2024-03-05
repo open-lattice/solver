@@ -59,6 +59,11 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
                MAT_INPLACE_MATRIX,
                &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
   MatView(transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+  int m{0};
+  int n{0};
+  MatGetSize(transformation_matrix_, &m, &n);
+  std::cout << "rows: " << m << std::endl;
+  std::cout << "columns: " << n << std::endl;
   //VecScale(PetscMasterStiffnessEquationAdaptee::gaps_, -1.0F);
   //Vec temporary_vector;
   //PetscMasterStiffnessEquationAdaptee::InitializeVector(&temporary_vector);
