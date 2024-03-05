@@ -23,9 +23,9 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
 
   MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD,
                             size,
-                            size,
+                            PETSC_DECIDE,
                             PETSC_DETERMINE,
-                            PETSC_DETERMINE,
+                            size - MasterStiffnessEquation::GetConstraintCount(),
                             beginning_of_each_row.data(),
                             column_numbers.data(),
                             non_zero_values.data(),
@@ -62,6 +62,7 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   int m{0};
   int n{0};
   MatGetSize(transformation_matrix_, &m, &n);
+  std::cout << "-----" << std::endl;
   std::cout << "rows: " << m << std::endl;
   std::cout << "columns: " << n << std::endl;
   //VecScale(PetscMasterStiffnessEquationAdaptee::gaps_, -1.0F);
