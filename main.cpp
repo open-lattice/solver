@@ -128,7 +128,7 @@ int main(int argc, char **args) {
         nnzAsp++;
       }
     }
-    if (!norm) nrows++;
+    if (!norm) { ++nrows; };
     ierr = MatRestoreRow(Kdense, row, &ncols, &cols, &vals);
     CHKERRQ(ierr);
   }
@@ -199,14 +199,34 @@ int main(int argc, char **args) {
   PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
   master_stiffness_equation_.SetStiffnessMatrix(K);
   boost::container::vector<Term> master_terms;
-  for (int i{1}; i < nrows; ++i) {
-    master_terms.push_back(Term(i, 1.0F));
-  }
+  master_terms.push_back(Term(5, -1.0F));
+  //for (int i{1}; i < nrows; ++i) {
+  //master_terms.push_back(Term(i, 1.0F));
+  //}
 
-  boost::container::vector constraints{Constraint(Term(0, 1.0F), master_terms)};
+  boost::container::vector constraints{Constraint(Term(1, 1.0F), master_terms)};
   master_stiffness_equation_.SetConstraints(
       constraints);
   master_stiffness_equation_.ApplyConstraints();
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
   //master_stiffness_equation_.Solve();
 
   //Mat expected_transformation_matrix;

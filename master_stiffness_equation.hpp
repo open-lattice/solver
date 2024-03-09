@@ -6,6 +6,7 @@
 #define MULTI_FREEDOM_CONSTRAINTS_MATRIX_HPP_
 #include <cstdio>
 #include <boost/unordered_set.hpp>
+#include <boost/bimap.hpp>
 
 class MasterStiffnessEquation {
  public:
@@ -56,6 +57,10 @@ class MasterStiffnessEquation {
     return MasterStiffnessEquation::constraints_.size();
   }
 
+  const Constraint &GetConstraint(int index) {
+    return MasterStiffnessEquation::constraints_.at(index);
+  }
+
   bool IsSlaveIndexForAConstraint(int index) {
     return MasterStiffnessEquation::slave_indices_.find(index) != MasterStiffnessEquation::slave_indices_.end();
   }
@@ -63,6 +68,7 @@ class MasterStiffnessEquation {
  private:
   boost::container::vector<Constraint> constraints_;
   boost::unordered_set<int> slave_indices_;
+  boost::bimap<int, int> beta_;
   std::vector<long> active_rows_;
   std::vector<long> active_columns_;
 };

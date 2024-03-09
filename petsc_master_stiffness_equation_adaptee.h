@@ -46,6 +46,7 @@ class PetscMasterStiffnessEquationAdaptee : public MasterStiffnessEquation {
   Vec modified_displacements_;
   Vec displacements_;
   void InitializeVector(Vec *);
+  void _InitializeReductionVectors(unsigned long);
 };
 
 #endif // MULTI_FREEDOM_CONSTRAINTS_PETSC_MASTER_STIFFNESS_EQUATION_ADAPTEE_H_

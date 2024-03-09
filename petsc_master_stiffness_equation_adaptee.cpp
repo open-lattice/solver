@@ -7,13 +7,15 @@ PetscMasterStiffnessEquationAdaptee::PetscMasterStiffnessEquationAdaptee() = def
 
 void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   static unsigned long size{MasterStiffnessEquation::ReadActiveRowSize()};
+  _InitializeReductionVectors(size);
+  return;
   boost::container::vector<PetscScalar> values(size - MasterStiffnessEquation::GetConstraintCount(), 1.0F);
   boost::container::vector<PetscInt> column_index;
   for (int i{0}; i < size - MasterStiffnessEquation::GetConstraintCount(); ++i) {
     column_index.push_back(i);
   }
   boost::container::vector<PetscInt> row_index{0};
-  for (int i{0}; i < size; ++i) {
+  for (unsigned long i{0}; i < size; ++i) {
     if (MasterStiffnessEquation::IsSlaveIndexForAConstraint(i)) {
       row_index.push_back(row_index.at(i));
     } else {
@@ -172,3 +174,21 @@ void PetscMasterStiffnessEquationAdaptee::InitializeVector(Vec *vec) {
   VecSet(*vec, 0.0F);
 }
 
+void PetscMasterStiffnessEquationAdaptee::_InitializeReductionVectors(unsigned long problem_size) {
+  boost::unordered_set<unsigned long> global_indices;
+  boost::unordered_set<unsigned long> slave_indices;
+
+  for (auto i{0}; i < MasterStiffnessEquation::GetConstraintCount(); ++i) {
+    slave_indices.insert(MasterStiffnessEquation::GetConstraint(i).GetSlaveTermIndex());
+  }
+
+  for (int i{0}; i < problem_size; ++i) {
+    global_indices.insert(i);
+  }
+
+  for (unsigned long i{0}; i < problem_size; ++i) {
+    if (slave_indices.find(i) == slave_indices.end()) {
+      std::cout << *global_indices.find(i) << std::endl;
+    }
+  }
+}
