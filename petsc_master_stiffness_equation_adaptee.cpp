@@ -7,17 +7,17 @@ PetscMasterStiffnessEquationAdaptee::PetscMasterStiffnessEquationAdaptee() = def
 
 void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   static unsigned long size{MasterStiffnessEquation::ReadActiveRowSize()};
-  boost::container::vector<PetscScalar> non_zero_values(size - MasterStiffnessEquation::GetConstraintCount(), 1.0F);
-  boost::container::vector<PetscInt> column_numbers;
+  boost::container::vector<PetscScalar> values(size - MasterStiffnessEquation::GetConstraintCount(), 1.0F);
+  boost::container::vector<PetscInt> column_index;
   for (int i{0}; i < size - MasterStiffnessEquation::GetConstraintCount(); ++i) {
-    column_numbers.push_back(i);
+    column_index.push_back(i);
   }
-  boost::container::vector<PetscInt> beginning_of_each_row{0};
+  boost::container::vector<PetscInt> row_index{0};
   for (int i{0}; i < size; ++i) {
     if (MasterStiffnessEquation::IsSlaveIndexForAConstraint(i)) {
-      beginning_of_each_row.push_back(beginning_of_each_row.at(i));
+      row_index.push_back(row_index.at(i));
     } else {
-      beginning_of_each_row.push_back(beginning_of_each_row.at(i) + 1);
+      row_index.push_back(row_index.at(i) + 1);
     }
   }
 
@@ -26,10 +26,11 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
                             PETSC_DECIDE,
                             PETSC_DETERMINE,
                             size - MasterStiffnessEquation::GetConstraintCount(),
-                            beginning_of_each_row.data(),
-                            column_numbers.data(),
-                            non_zero_values.data(),
+                            row_index.data(),
+                            column_index.data(),
+                            values.data(),
                             &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
+  MatView(transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
                &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
