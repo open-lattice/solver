@@ -177,8 +177,9 @@ void PetscMasterStiffnessEquationAdaptee::InitializeVector(Vec *vec) {
 void PetscMasterStiffnessEquationAdaptee::_InitializeReductionVectors(unsigned long problem_size) {
   boost::unordered_set<unsigned long> global_indices;
   boost::unordered_set<unsigned long> slave_indices;
+  auto constraint_count = MasterStiffnessEquation::GetConstraintCount();
 
-  for (auto i{0}; i < MasterStiffnessEquation::GetConstraintCount(); ++i) {
+  for (auto i{0}; i < constraint_count; ++i) {
     slave_indices.insert(MasterStiffnessEquation::GetConstraint(i).GetSlaveTermIndex());
   }
 
@@ -186,9 +187,14 @@ void PetscMasterStiffnessEquationAdaptee::_InitializeReductionVectors(unsigned l
     global_indices.insert(i);
   }
 
-  for (unsigned long i{0}; i < problem_size; ++i) {
+  boost::bimap<unsigned long, unsigned long> aa;
+  for (unsigned long i{0}; i < problem_size ; ++i) {
     if (slave_indices.find(i) == slave_indices.end()) {
-      std::cout << *global_indices.find(i) << std::endl;
+      aa.insert(boost::bimap<unsigned long, unsigned long>::value_type(i, *global_indices.find(i)));
     }
+  }
+  for (auto it = aa.begin(), iend = aa.end(); it !=iend; ++ it) {
+    std::cout << it->left <<  ":"<< it->right << std::endl;
+
   }
 }
