@@ -7,6 +7,7 @@
 
 #include <map>
 #include <vector>
+#include <unordered_set>
 
 #include <boost/container/vector.hpp>
 #include <boost/shared_ptr.hpp>
