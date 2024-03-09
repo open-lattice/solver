@@ -7,8 +7,7 @@ PetscMasterStiffnessEquationAdaptee::PetscMasterStiffnessEquationAdaptee() = def
 
 void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   static unsigned long size{MasterStiffnessEquation::ReadActiveRowSize()};
-  _InitializeReductionVectors(size);
-  return;
+  InitializeGlobalToMasterIndicesLookupTable(size);
   boost::container::vector<PetscScalar> values(size - MasterStiffnessEquation::GetConstraintCount(), 1.0F);
   boost::container::vector<PetscInt> column_index;
   for (int i{0}; i < size - MasterStiffnessEquation::GetConstraintCount(); ++i) {
@@ -47,9 +46,9 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
 
     for (const auto &master_term : constraint.GetMasterTerms()) {
       MatSetValue(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
-                  master_term.GetIndex() - 1, //TODO: Make this work with any constraint combination.
+                  PetscMasterStiffnessEquationAdaptee::global_to_master_indices_lookup_.left.find(master_term.GetIndex())->second,
                   constraint.GetSlaveTermIndex(),
-                  -master_term.GetCoefficient() / constraint.GetSlaveTermCoefficient(),
+                  -1.0F * master_term.GetCoefficient() / constraint.GetSlaveTermCoefficient(),
                   INSERT_VALUES);
     }
   }
@@ -174,9 +173,9 @@ void PetscMasterStiffnessEquationAdaptee::InitializeVector(Vec *vec) {
   VecSet(*vec, 0.0F);
 }
 
-void PetscMasterStiffnessEquationAdaptee::_InitializeReductionVectors(unsigned long problem_size) {
+unsigned long PetscMasterStiffnessEquationAdaptee::InitializeGlobalToMasterIndicesLookupTable(unsigned long problem_size) {
+  PetscMasterStiffnessEquationAdaptee::global_to_master_indices_lookup_.clear();
   std::unordered_set<unsigned long> slave_indices_for_constraints;
-  boost::bimap<unsigned long, unsigned long> global_to_master_indices_lookup;
 
   for (auto i{0}; i < MasterStiffnessEquation::GetConstraintCount(); ++i) {
     slave_indices_for_constraints.insert(MasterStiffnessEquation::GetConstraint(i).GetSlaveTermIndex());
@@ -185,8 +184,11 @@ void PetscMasterStiffnessEquationAdaptee::_InitializeReductionVectors(unsigned l
   unsigned long master_index_for_constraint{0};
   for (int i{0}; i < problem_size; ++i) {
     if (slave_indices_for_constraints.find(i) == slave_indices_for_constraints.end()) {
-      global_to_master_indices_lookup.insert(boost::bimap<unsigned long, unsigned long>::value_type(i,
-                                                                                                    master_index_for_constraint++));
+      PetscMasterStiffnessEquationAdaptee::global_to_master_indices_lookup_.insert(boost::bimap<unsigned long,
+                                                                                                unsigned long>::value_type(
+          i,
+          master_index_for_constraint++));
     }
   }
+  return PetscMasterStiffnessEquationAdaptee::global_to_master_indices_lookup_.size();
 }
