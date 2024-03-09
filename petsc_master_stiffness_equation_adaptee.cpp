@@ -31,7 +31,6 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
                             column_index.data(),
                             values.data(),
                             &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
-  MatView(transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
                &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
@@ -55,18 +54,10 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
 
   MatAssemblyBegin(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_FINAL_ASSEMBLY);
-  //MatZeroRows(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, rows.size(), rows.data(), 0.0,
-  //          nullptr, nullptr);
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
                &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
-  MatView(transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
-  int m{0};
-  int n{0};
-  MatGetSize(transformation_matrix_, &m, &n);
-  std::cout << "-----" << std::endl;
-  std::cout << "rows: " << m << std::endl;
-  std::cout << "columns: " << n << std::endl;
+
   //VecScale(PetscMasterStiffnessEquationAdaptee::gaps_, -1.0F);
   //Vec temporary_vector;
   //PetscMasterStiffnessEquationAdaptee::InitializeVector(&temporary_vector);
