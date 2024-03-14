@@ -198,11 +198,20 @@ int main(int argc, char **args) {
 
   PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
   master_stiffness_equation_.SetStiffnessMatrix(K);
+
+  Vec _f;
+  VecCreate(PETSC_COMM_WORLD, &_f);
+  VecSetSizes(_f, n, PETSC_DECIDE);
+  VecSetFromOptions(_f);
+  VecSet(_f, 0.0F);
+  VecSetValue(_f, 0, -20.0F, INSERT_VALUES);
+  master_stiffness_equation_.SetForces(_f);
+
   boost::container::vector<Term> master_terms;
-  //master_terms.push_back(Term(5, -1.0F));
-  for (int i{1}; i < nrows; ++i) {
-    master_terms.push_back(Term(i, 1.0F));
-  }
+  master_terms.push_back(Term(5, -1.0F));
+  //for (int i{1}; i < nrows; ++i) {
+  //  master_terms.push_back(Term(i, 1.0F));
+  //}
 
   boost::container::vector constraints{Constraint(Term(0, 1.0F), master_terms)};
   master_stiffness_equation_.SetConstraints(
