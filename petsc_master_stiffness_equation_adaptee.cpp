@@ -64,11 +64,11 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
 
   /* application of the formula(divided into three steps):  _K = T^T.K.T => _K = (T^T.K).T */
   /* get T^T.K */
-  MatTransposeMatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
-                      PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
-                      MAT_INITIAL_MATRIX,
-                      PETSC_DEFAULT,
-                      &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
+  MatMatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
+             PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
+             MAT_INITIAL_MATRIX,
+             PETSC_DEFAULT,
+             &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
   /* get T */
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
