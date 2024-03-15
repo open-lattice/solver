@@ -66,7 +66,7 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   /* get T^T.K */
   MatTransposeMatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                       PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
-                      MAT_REUSE_MATRIX,
+                      MAT_INITIAL_MATRIX,
                       PETSC_DEFAULT,
                       &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
   /* get T */
