@@ -1,6 +1,7 @@
 //
 // Created by Nitel Muhtaroglu on 2023-12-23.
 //
+
 #include "petsc_master_stiffness_equation_adaptee.h"
 
 PetscMasterStiffnessEquationAdaptee::PetscMasterStiffnessEquationAdaptee() = default;
@@ -56,15 +57,28 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   MatAssemblyEnd(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_FINAL_ASSEMBLY);
   /* We now have T^T in stored as transformation_matrix_ */
 
-  /* _f = T^T.f */
+  /* application of the formula:  _f = T^T.f */
   MatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
           PetscMasterStiffnessEquationAdaptee::forces_,
           PetscMasterStiffnessEquationAdaptee::modified_forces_);
 
-  /* _K = T^T.K.T */
+  /* application of the formula(divided into three steps):  _K = T^T.K.T => _K = (T^T.K).T */
+  /* get T^T.K */
+  MatTransposeMatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
+                      PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
+                      MAT_REUSE_MATRIX,
+                      PETSC_DEFAULT,
+                      &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
+  /* get T */
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
                &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
+  /* (T^T.K).T */
+  MatMatMult(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
+             PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
+             MAT_REUSE_MATRIX,
+             PETSC_DEFAULT,
+             &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
 
   //VecScale(PetscMasterStiffnessEquationAdaptee::gaps_, -1.0F);
   //Vec temporary_vector;
