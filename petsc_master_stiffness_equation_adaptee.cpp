@@ -79,6 +79,29 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   /* get T^T.K */
   MatView(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   MatView(PetscMasterStiffnessEquationAdaptee::stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+
+  /* create _K matrix */
+  //MatDuplicate(stiffness_matrix_, MAT_DO_NOT_COPY_VALUES, &modified_stiffness_matrix_);
+  /* Get a sparse matrix K by dumping zero entries of Kdense */
+  MatCreate(PETSC_COMM_WORLD, &modified_stiffness_matrix_);
+  MatSetSizes(modified_stiffness_matrix_,
+              size,
+              size - MasterStiffnessEquation::GetConstraintCount(),
+              PETSC_DECIDE,
+              PETSC_DECIDE);
+  MatSetType(modified_stiffness_matrix_, MATMPIAIJ);
+  //Dnnz = (PetscInt) matinfo.nz_used / m + 1;
+  //Onnz = Dnnz / 2;
+  //printf("Dnnz %d %d\n", Dnnz, Onnz);
+  //MatMPISBAIJSetPreallocation(K, 1, Dnnz, NULL, Onnz, NULL);
+  //CHKERRQ(ierr);
+  /* The allocation above is approximate so we must set this option to be permissive.
+   * Real code should preallocate exactly. */
+  MatSetOption(modified_stiffness_matrix_, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_FALSE);
+
+  MatAssemblyBegin(modified_stiffness_matrix_, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(modified_stiffness_matrix_, MAT_FINAL_ASSEMBLY);
+
   MatView(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   MatMatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
              PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
@@ -87,7 +110,7 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
              &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
   MatView(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   MatView(PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
-          PETSC_VIEWER_STDOUT_WORLD); //TODO: make stiffness_matrix_ parallel.
+          PETSC_VIEWER_STDOUT_WORLD);
   MatView(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   /* get T */
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
@@ -96,10 +119,11 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   /* (T^T.K).T */
   MatMatMult(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
              PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
-             MAT_REUSE_MATRIX,
+             MAT_INITIAL_MATRIX,
              PETSC_DEFAULT,
              &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
 
+  MatView(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   //VecScale(PetscMasterStiffnessEquationAdaptee::gaps_, -1.0F);
   //Vec temporary_vector;
   //PetscMasterStiffnessEquationAdaptee::InitializeVector(&temporary_vector);
