@@ -199,13 +199,15 @@ int main(int argc, char **args) {
   PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
   master_stiffness_equation_.SetStiffnessMatrix(K);
 
-  Vec _f;
-  VecCreate(PETSC_COMM_WORLD, &_f);
-  VecSetSizes(_f, n, PETSC_DECIDE);
-  VecSetFromOptions(_f);
-  VecSet(_f, 0.0F);
-  VecSetValue(_f, 0, -20.0F, INSERT_VALUES);
-  master_stiffness_equation_.SetForces(_f);
+  Vec forces;
+  VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, n, &forces);
+  VecSetFromOptions(forces);
+  VecSet(forces, 0.0F);
+  VecSetValue(forces, 0, -20.0F, INSERT_VALUES);
+
+  VecAssemblyBegin(forces);
+  VecAssemblyEnd(forces);
+  master_stiffness_equation_.SetForces(forces);
 
   boost::container::vector<Term> master_terms;
   master_terms.push_back(Term(5, -1.0F));
@@ -307,7 +309,6 @@ bool TestNonHomogeniousMfcs() {
   VecSetFromOptions(f);
   VecSet(f, 0.0F);
   VecSetValue(f, 0, -20.0F, INSERT_VALUES);
-  master_stiffness_equation_.SetForces(f);
 
   Vec g;
   VecCreate(PETSC_COMM_WORLD, &g);
