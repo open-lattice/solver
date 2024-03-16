@@ -220,8 +220,8 @@ int main(int argc, char **args) {
   boost::container::vector constraints{Constraint(Term(0, 1.0F), master_terms)};
   master_stiffness_equation_.SetConstraints(
       constraints);
-  master_stiffness_equation_.ApplyConstraints();
 
+  master_stiffness_equation_.ApplyConstraints();
   master_stiffness_equation_.Solve();
 
 
