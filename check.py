@@ -5,21 +5,27 @@ import matplotlib.pyplot as plt
 
 
 def check():
-    T = np.array([[-1, -1, -1, -1, -1], [1, 0, 0, 0, 0], [0, 1, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0],
-                  [0, 0, 0, 0, 1]])
-    _T = T.transpose()
-    f = np.array([-20, 0, 0, 0, 0, 0])
-    _f = _T.dot(f)
     K = np.array(
         [[100, -100, 0, 0, 0, 0], [-100, 200, -100, 0, 0, 0], [0, -100, 200, -100, 0, 0], [0, 0, -100, 200, -100, 0],
          [0, 0, 0, -100, 200, -100], [0, 0, 0, 0, -100, 200]])
-    _K = (_T.dot(K)).dot(T)
-    print(_K)
+    f = np.array([-20, 0, 0, 0, 0, 0])
+    #f = np.array([-90, 0, 80, 0, 0, 0])
+    T = np.array([[0, 0, 0, 0, 1], [1, 0, 0, 0, 0], [0, 1, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0],
+                  [0, 0, 0, 0, 1]])
+    Tt = T.transpose()
+
+    _f = Tt.dot(f)
+    print("_f:", _f)
+
+    _K = (Tt.dot(K)).dot(T)
+    print("_K:", _K)
+
     _u = np.linalg.solve(_K, _f)
-    print(_u)
+    print("_u:", _u)
+
     u = T.dot(_u)
-    print(u)
-    u_sum = u[0] + u[1] + u[2] + u[3] + u[4] + u[5]
+    print("u: ", u)
+    print("constraint check", u[0] - u[5])
 
 
 if __name__ == "__main__":
