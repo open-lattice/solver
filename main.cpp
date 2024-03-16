@@ -205,7 +205,8 @@ int main(int argc, char **args) {
   VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, n, &forces);
   VecSetFromOptions(forces);
   VecSet(forces, 0.0F);
-  VecSetValue(forces, 0, -20.0F, INSERT_VALUES);
+  VecSetValue(forces, 0, -90.0F, INSERT_VALUES);
+  VecSetValue(forces, 2, 80.0F, INSERT_VALUES);
   VecAssemblyBegin(forces);
   VecAssemblyEnd(forces);
   master_stiffness_equation_.SetForces(forces);

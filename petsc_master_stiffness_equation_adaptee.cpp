@@ -129,11 +129,15 @@ void PetscMasterStiffnessEquationAdaptee::Solve() {
            PetscMasterStiffnessEquationAdaptee::modified_displacements_);
   KSPDestroy(&ksp);
 
+  std::cout << "_u: " << std::endl;
+  VecView(PetscMasterStiffnessEquationAdaptee::modified_displacements_, PETSC_VIEWER_STDOUT_WORLD);
   PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::displacements_));
   MatMultAdd(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
              PetscMasterStiffnessEquationAdaptee::modified_displacements_,
              PetscMasterStiffnessEquationAdaptee::gaps_,
              PetscMasterStiffnessEquationAdaptee::displacements_);
+  std::cout << "u: " << std::endl;
+  VecView(PetscMasterStiffnessEquationAdaptee::displacements_, PETSC_VIEWER_STDOUT_WORLD);
 }
 
 void PetscMasterStiffnessEquationAdaptee::SetStiffnessMatrix(const Mat &stiffness_matrix) {
