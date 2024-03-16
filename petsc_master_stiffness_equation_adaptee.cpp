@@ -57,14 +57,15 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   MatAssemblyEnd(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_FINAL_ASSEMBLY);
   /* We now have T^T in stored as transformation_matrix_ */
 
-  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_forces_));
+  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_forces_),
+                                                        size - MasterStiffnessEquation::GetConstraintCount());
 
   /* application of the formula:  _f = T^T.f */
   MatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
           PetscMasterStiffnessEquationAdaptee::forces_,
           PetscMasterStiffnessEquationAdaptee::modified_forces_);
-  std::cout << "_f: " << std::endl;
-  VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
+  //std::cout << "_f: " << std::endl;
+  //VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
 
   /* application of the formula(divided into three steps):  _K = T^T.K.T => _K = (T^T.K).T */
   /* get T^T.K */
@@ -103,8 +104,8 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
              PETSC_DEFAULT,
              &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
 
-  std::cout << "_K: " << std::endl;
-  MatView(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+  //std::cout << "_K: " << std::endl;
+  //MatView(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
 }
 
 void PetscMasterStiffnessEquationAdaptee::Solve() {
@@ -118,15 +119,20 @@ void PetscMasterStiffnessEquationAdaptee::Solve() {
   PCSetType(pc, PCJACOBI);
   KSPSetTolerances(ksp, 1.e-5, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);
   KSPSetFromOptions(ksp);
-  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_displacements_));
+  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_displacements_),
+                                                        MasterStiffnessEquation::ReadActiveRowSize()
+                                                            - MasterStiffnessEquation::GetConstraintCount());
   KSPSolve(ksp,
            PetscMasterStiffnessEquationAdaptee::modified_forces_,
            PetscMasterStiffnessEquationAdaptee::modified_displacements_);
   KSPDestroy(&ksp);
 
-  std::cout << "_u: " << std::endl;
-  VecView(PetscMasterStiffnessEquationAdaptee::modified_displacements_, PETSC_VIEWER_STDOUT_WORLD);
-  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::displacements_));
+  //std::cout << "_u: " << std::endl;
+  //VecView(PetscMasterStiffnessEquationAdaptee::modified_displacements_, PETSC_VIEWER_STDOUT_WORLD);
+  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::displacements_),
+                                                        MasterStiffnessEquation::ReadActiveRowSize());
+  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::gaps_),
+                                                        MasterStiffnessEquation::ReadActiveRowSize());
   MatMultAdd(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
              PetscMasterStiffnessEquationAdaptee::modified_displacements_,
              PetscMasterStiffnessEquationAdaptee::gaps_,
@@ -183,10 +189,10 @@ void PetscMasterStiffnessEquationAdaptee::SetGaps(const Vec &gaps) {
 [[nodiscard]] const Vec &PetscMasterStiffnessEquationAdaptee::GetDisplacements() const {
   return PetscMasterStiffnessEquationAdaptee::displacements_;
 }
-void PetscMasterStiffnessEquationAdaptee::InitializeVector(Vec *vector) {
+void PetscMasterStiffnessEquationAdaptee::InitializeVector(Vec *vector, PetscInt size) {
   VecCreateMPI(PETSC_COMM_WORLD,
                PETSC_DECIDE,
-               MasterStiffnessEquation::ReadActiveRowSize() - MasterStiffnessEquation::GetConstraintCount(),
+               size,
                vector);
   VecSetFromOptions(*vector);
   VecSet(*vector, 0.0F);

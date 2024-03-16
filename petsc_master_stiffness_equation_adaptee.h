@@ -47,7 +47,7 @@ class PetscMasterStiffnessEquationAdaptee : public MasterStiffnessEquation {
   Vec modified_displacements_;
   Vec displacements_;
   boost::bimap<unsigned long, unsigned long> global_to_master_indices_lookup_;
-  void InitializeVector(Vec *);
+  void InitializeVector(Vec *, PetscInt);
   unsigned long InitializeGlobalToMasterIndicesLookupTable(unsigned long);
 };
 

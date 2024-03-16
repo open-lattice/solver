@@ -212,10 +212,10 @@ int main(int argc, char **args) {
   master_stiffness_equation_.SetForces(forces);
 
   boost::container::vector<Term> master_terms;
-  master_terms.push_back(Term(5, -1.0F));
-  //for (int i{1}; i < nrows; ++i) {
-  //  master_terms.push_back(Term(i, 1.0F));
-  //}
+  //master_terms.push_back(Term(5, -1.0F));
+  for (int i{1}; i < nrows; ++i) {
+    master_terms.push_back(Term(i, 1.0F));
+  }
 
   boost::container::vector constraints{Constraint(Term(0, 1.0F), master_terms)};
   master_stiffness_equation_.SetConstraints(
