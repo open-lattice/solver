@@ -222,6 +222,7 @@ int main(int argc, char **args) {
       constraints);
   master_stiffness_equation_.ApplyConstraints();
 
+  master_stiffness_equation_.Solve();
 
 
 
@@ -240,7 +241,6 @@ int main(int argc, char **args) {
 
 
 
-  //master_stiffness_equation_.Solve();
 
   //Mat expected_transformation_matrix;
   //boost::array<PetscInt, 7> _beginning_of_each_row{0, 1, 2, 7, 8, 9, 10};

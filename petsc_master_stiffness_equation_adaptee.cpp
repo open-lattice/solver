@@ -77,20 +77,22 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   /* get T^T.K */
   /* create _K matrix */
   /* Get a sparse matrix K by dumping zero entries of Kdense */
-  MatCreate(PETSC_COMM_WORLD, &modified_stiffness_matrix_);
-  MatSetSizes(modified_stiffness_matrix_,
+  MatCreate(PETSC_COMM_WORLD, &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
+  MatSetSizes(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
               size,
               size - MasterStiffnessEquation::GetConstraintCount(),
               PETSC_DECIDE,
               PETSC_DECIDE);
-  MatSetType(modified_stiffness_matrix_, MATMPIAIJ);
+  MatSetType(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, MATMPIAIJ);
 
   /* The allocation above is approximate so we must set this option to be permissive.
    * Real code should preallocate exactly. */
-  MatSetOption(modified_stiffness_matrix_, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_FALSE);
+  MatSetOption(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
+               MAT_NEW_NONZERO_LOCATION_ERR,
+               PETSC_FALSE);
 
-  MatAssemblyBegin(modified_stiffness_matrix_, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(modified_stiffness_matrix_, MAT_FINAL_ASSEMBLY);
+  MatAssemblyBegin(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, MAT_FINAL_ASSEMBLY);
 
   MatMatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
              PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
