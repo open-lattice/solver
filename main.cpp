@@ -92,6 +92,7 @@ int main(int argc, char **args) {
   ierr = MatSetOptionsPrefix(K, "asp_");
   CHKERRQ(ierr);
   ierr = MatSetFromOptions(K);
+  ierr = MatSetType(K, MATMPIBAIJ);
   CHKERRQ(ierr);
   Dnnz = (PetscInt) matinfo.nz_used / m + 1;
   Onnz = Dnnz / 2;

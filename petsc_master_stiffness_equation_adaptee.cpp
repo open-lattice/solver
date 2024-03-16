@@ -77,13 +77,18 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
 
   /* application of the formula(divided into three steps):  _K = T^T.K.T => _K = (T^T.K).T */
   /* get T^T.K */
+  MatView(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+  MatView(PetscMasterStiffnessEquationAdaptee::stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+  MatView(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   MatMatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
              PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
              MAT_INITIAL_MATRIX,
              PETSC_DEFAULT,
              &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
-  MatView(PetscMasterStiffnessEquationAdaptee::stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
-  //MatView(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+  MatView(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+  MatView(PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
+          PETSC_VIEWER_STDOUT_WORLD); //TODO: make stiffness_matrix_ parallel.
+  MatView(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   /* get T */
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
