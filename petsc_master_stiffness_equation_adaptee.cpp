@@ -58,11 +58,22 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   /* We now have T^T in stored as transformation_matrix_ */
   MatView(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   VecView(PetscMasterStiffnessEquationAdaptee::forces_, PETSC_VIEWER_STDOUT_WORLD);
+
+  VecCreateMPI(PETSC_COMM_WORLD,
+               PETSC_DECIDE,
+               size - MasterStiffnessEquation::GetConstraintCount(),
+               &(PetscMasterStiffnessEquationAdaptee::modified_forces_));
+  VecSetFromOptions(PetscMasterStiffnessEquationAdaptee::modified_forces_);
+  VecSet(PetscMasterStiffnessEquationAdaptee::modified_forces_, 0.0F);
+  VecAssemblyBegin(PetscMasterStiffnessEquationAdaptee::modified_forces_);
+  VecAssemblyEnd(PetscMasterStiffnessEquationAdaptee::modified_forces_);
   VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
+
   /* application of the formula:  _f = T^T.f */
   MatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
           PetscMasterStiffnessEquationAdaptee::forces_,
           PetscMasterStiffnessEquationAdaptee::modified_forces_);
+  VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
 
   /* application of the formula(divided into three steps):  _K = T^T.K.T => _K = (T^T.K).T */
   /* get T^T.K */

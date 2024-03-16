@@ -204,7 +204,6 @@ int main(int argc, char **args) {
   VecSetFromOptions(forces);
   VecSet(forces, 0.0F);
   VecSetValue(forces, 0, -20.0F, INSERT_VALUES);
-
   VecAssemblyBegin(forces);
   VecAssemblyEnd(forces);
   master_stiffness_equation_.SetForces(forces);
