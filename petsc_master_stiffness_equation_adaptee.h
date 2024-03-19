@@ -7,9 +7,10 @@
 
 #include <map>
 #include <vector>
+#include <unordered_set>
 
 #include <boost/container/vector.hpp>
-#include <boost/shared_ptr.hpp>
+#include <boost/bimap.hpp>
 
 #include <petscmat.h>
 #include <petscvec.h>
@@ -45,7 +46,9 @@ class PetscMasterStiffnessEquationAdaptee : public MasterStiffnessEquation {
   Mat modified_stiffness_matrix_;
   Vec modified_displacements_;
   Vec displacements_;
-  void InitializeVector(Vec *);
+  boost::bimap<unsigned long, unsigned long> global_to_master_indices_lookup_;
+  void InitializeVector(Vec *, PetscInt);
+  unsigned long InitializeGlobalToMasterIndicesLookupTable(unsigned long);
 };
 
 #endif // MULTI_FREEDOM_CONSTRAINTS_PETSC_MASTER_STIFFNESS_EQUATION_ADAPTEE_H_
