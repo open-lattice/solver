@@ -8,7 +8,8 @@ set(ENV{PETSC_DIR} /home/nitelm/workspace/petsc)
 set(ENV{PETSC_ARCH} arch-linux-c-debug)
 set(PETSC_INCLUDE /home/nitelm/workspace/petsc/include)
 
-find_package(PETSc)
+find_package(PETSc REQUIRED)
+find_package(MPI REQUIRED)
 add_library(multifreedom_constraints SHARED constraint.cpp constraint.h
         eigen_master_stiffness_equation_adaptee.cpp eigen_master_stiffness_equation_adaptee.h
         petsc_master_stiffness_equation_adaptee.cpp petsc_master_stiffness_equation_adaptee.h
@@ -17,7 +18,7 @@ target_include_directories(multifreedom_constraints PRIVATE /usr/include)
 target_include_directories(multifreedom_constraints PRIVATE /usr/include/eigen3)
 target_include_directories(multifreedom_constraints PRIVATE ${PETSC_INCLUDE})
 target_include_directories(multifreedom_constraints PRIVATE ${PETSC_DIR}/${PETSC_ARCH}/include)
-target_link_libraries(multifreedom_constraints PRIVATE ${PETSC_LIBRARIES})
+target_link_libraries(multifreedom_constraints PRIVATE ${PETSC_LIBRARIES} MPI::MPI_CXX)
 
 if (${PETSC_FOUND})
     add_executable(main main.cpp)

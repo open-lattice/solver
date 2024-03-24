@@ -1,10 +1,11 @@
 //
 // Created by Nitel Muhtaroglu on 2023-11-06.
 //
+#include <mpi.h>
+
 #include <boost/assign.hpp>
 #include <boost/container/vector.hpp>
 #include <boost/array.hpp>
-#include <boost/assert.hpp>
 
 #include <gtest/gtest.h>
 
@@ -15,7 +16,6 @@
 #include <petscmat.h>
 #include <petscsys.h>
 #include <petscvec.h>
-#include <petscksp.h>
 #include <petscerror.h>
 
 static char help[] = "Writes an array to a file, then reads an array from a "
@@ -47,9 +47,7 @@ int main(int argc, char **args) {
   PetscInt rstart;
   PetscInt rend;
   PetscBool flg;
-  PetscInt row;
   PetscInt ncols;
-  PetscInt j;
   PetscInt nrows;
   PetscInt nnzA = 0;
   PetscInt nnzAsp = 0;
@@ -59,10 +57,12 @@ int main(int argc, char **args) {
   PetscMPIInt rank;
   MatInfo matinfo;
   PetscInt Dnnz, Onnz;
-
   ierr = PetscInitialize(&argc, &args, (char *) 0, help);
   if (ierr) { return ierr; }
+  int world_size{0};
+  MPI_Comm_size(PETSC_COMM_WORLD, &world_size);
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+  printf("Hello world from: rank %d out of %d processes.\n", rank, world_size);
   CHKERRQ(ierr);
 
   /* Determine files from which we read the linear systems. */
@@ -90,7 +90,6 @@ int main(int argc, char **args) {
   CHKERRQ(ierr);
   ierr = MatGetInfo(Kdense, MAT_LOCAL, &matinfo);
   CHKERRQ(ierr);
-  /*printf("matinfo.nz_used %g\n",matinfo.nz_used);*/
 
   /* Get a sparse matrix K by dumping zero entries of Kdense */
   ierr = MatCreate(PETSC_COMM_WORLD, &K);
@@ -106,13 +105,10 @@ int main(int argc, char **args) {
   Dnnz = (PetscInt) matinfo.nz_used / m + 1;
   Onnz = Dnnz / 2;
   printf("Dnnz %d %d\n", Dnnz, Onnz);
-  //ierr = MatSeqAIJSetPreallocation(K, Dnnz, NULL);
-  //ierr = MatSeqSBAIJSetPreallocation(K, 1, Dnnz, NULL);
   CHKERRQ(ierr);
   ierr = MatMPISBAIJSetPreallocation(K, 1, Dnnz, NULL, Onnz, NULL);
-  //ierr = MatMPIAIJSetPreallocation(K, Dnnz, NULL, Onnz, NULL);
   CHKERRQ(ierr);
-  /* The allocation above is approximate so we must set this option to be permissive.
+  /* The allocation above is approximate, so we must set this option to be permissive.
    * Real code should preallocate exactly. */
   ierr = MatSetOption(K, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_FALSE);
   CHKERRQ(ierr);
@@ -121,14 +117,14 @@ int main(int argc, char **args) {
   ierr = MatGetOwnershipRange(Kdense, &rstart, &rend);
   CHKERRQ(ierr);
   nrows = 0;
-  for (row = rstart; row < rend; row++) {
+  for (PetscInt row{rstart}; row < rend; row++) {
     ierr = MatGetRow(Kdense, row, &ncols, &cols, &vals);
     CHKERRQ(ierr);
     nnzA += ncols;
     norm = 0.0;
-    for (j = 0; j < ncols; ++j) {
+    for (int j{0}; j < ncols; ++j) {
       val = PetscAbsScalar(vals[j]);
-      if (norm < val) norm = norm;
+      if (norm < val) { norm = norm; }
       if (val > dtol) {
         ierr = MatSetValues(K, 1, &row, 1, &cols[j], &vals[j], INSERT_VALUES);
         if (row != cols[j]) {
@@ -138,7 +134,7 @@ int main(int argc, char **args) {
         nnzAsp++;
       }
     }
-    if (!norm) { ++nrows; };
+    if (!norm) { ++nrows; }
     ierr = MatRestoreRow(Kdense, row, &ncols, &cols, &vals);
     CHKERRQ(ierr);
   }
@@ -148,16 +144,16 @@ int main(int argc, char **args) {
   CHKERRQ(ierr);
 
   percent = (PetscReal) nnzA * 100 / (m * n);
-  ierr = PetscPrintf(PETSC_COMM_SELF,
-                     " [%d] Matrix Kdense local size %d,%d; nnzA %d, %g percent; No. of zero rows: %d\n",
-                     rank,
-                     m,
-                     n,
-                     nnzA,
-                     percent,
-                     nrows);
+  PetscPrintf(PETSC_COMM_SELF,
+              " [%d] Matrix Kdense local size %d,%d; nnzA %d, %g percent; No. of zero rows: %d\n",
+              rank,
+              m,
+              n,
+              nnzA,
+              percent,
+              nrows);
   percent = (PetscReal) nnzAsp * 100 / (m * n);
-  ierr = PetscPrintf(PETSC_COMM_SELF, " [%d] Matrix K nnzAsp %d, %g percent\n", rank, nnzAsp, percent);
+  PetscPrintf(PETSC_COMM_SELF, " [%d] Matrix K nnzAsp %d, %g percent\n", rank, nnzAsp, percent);
 
   /* investigate matcoloring for K */
   PetscBool Asp_coloring = PETSC_FALSE;
@@ -167,7 +163,7 @@ int main(int argc, char **args) {
     MatColoring mc;
     ISColoring iscoloring;
     MatFDColoring matfdcoloring;
-    ierr = PetscPrintf(PETSC_COMM_WORLD, " Create coloring of K...\n");
+    PetscPrintf(PETSC_COMM_WORLD, " Create coloring of K...\n");
     ierr = MatColoringCreate(K, &mc);
     CHKERRQ(ierr);
     ierr = MatColoringSetType(mc, MATCOLORINGSL);
@@ -184,7 +180,6 @@ int main(int argc, char **args) {
     CHKERRQ(ierr);
     ierr = MatFDColoringSetUp(K, iscoloring, matfdcoloring);
     CHKERRQ(ierr);
-    /*ierr = MatFDColoringView(matfdcoloring,PETSC_VIEWER_STDOUT_WORLD);CHKERRQ(ierr);*/
     ierr = ISColoringDestroy(&iscoloring);
     CHKERRQ(ierr);
     ierr = MatFDColoringDestroy(&matfdcoloring);
@@ -198,6 +193,7 @@ int main(int argc, char **args) {
   if (Asp_write) {
     PetscViewer viewer;
     ierr = PetscPrintf(PETSC_COMM_SELF, "Write K into file K.dat ...\n");
+    CHKERRQ(ierr);
     ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, "K.dat", FILE_MODE_WRITE, &viewer);
     CHKERRQ(ierr);
     ierr = MatView(K, viewer);
@@ -231,55 +227,6 @@ int main(int argc, char **args) {
 
   master_stiffness_equation_.ApplyConstraints();
   master_stiffness_equation_.Solve();
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-  //Mat expected_transformation_matrix;
-  //boost::array<PetscInt, 7> _beginning_of_each_row{0, 1, 2, 7, 8, 9, 10};
-  //boost::array<PetscInt, 10>
-  //    _column_numbers{0, 1, 0, 1, 3, 4, 5, 3, 4, 5}; // j vec size nnz
-  //boost::array<PetscScalar, 10>
-  //    _non_zero_values{1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-  //MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD, 6, 6, PETSC_DETERMINE,
-  //                          PETSC_DETERMINE, _beginning_of_each_row.data(),
-  //                          _column_numbers.data(), _non_zero_values.data(), &expected_transformation_matrix);
-  //auto actual_transformation_matrix = master_stiffness_equation_.GetTransformationMatrix();
-  //PetscBool equal;
-  //MatEqual(expected_transformation_matrix, actual_transformation_matrix, &equal);
-  //BOOST_ASSERT(equal);
-
-  //Mat expected_modified_stiffness_matrix;
-  //boost::array<PetscInt, 7> _beginning_of_each_row_{0, 4, 7, 7, 10, 14, 19};
-  //boost::array<PetscInt, 19>
-  //    _column_numbers_{0, 3, 4, 5, 1, 4, 5, 0, 3, 5, 0, 1, 4, 5, 0, 1, 3, 4, 5}; // j vec size nnz
-  //boost::array<PetscScalar, 19>
-  //    _non_zero_values_
-  //    {300.0F, 100.0F, 200.0F, 200.0F, 200.0F, 100.0F, 100.0F, 100.0F, 200.0F, 100.0F, 200.0F, 100.0F, 400.0F,
-  //     100.0F, 200.0F, 100.0F, 100.0F, 100.0F, 400.F};
-  //MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD, 6, 6, PETSC_DETERMINE,
-  //                          PETSC_DETERMINE, _beginning_of_each_row_.data(),
-  //                          _column_numbers_.data(), _non_zero_values_.data(), &expected_modified_stiffness_matrix);
-  //auto actual_modified_stiffness_matrix = master_stiffness_equation_.GetModifiedStiffnessMatrix();
-  //MatEqual(actual_modified_stiffness_matrix, expected_modified_stiffness_matrix, &equal);
-  //MatView(expected_modified_stiffness_matrix, PETSC_VIEWER_STDOUT_WORLD);
-  //MatView(actual_modified_stiffness_matrix, PETSC_VIEWER_STDOUT_WORLD);
-  //BOOST_ASSERT(equal);
 
   //TestNonHomogeniousMfcs();
 
