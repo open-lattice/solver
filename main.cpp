@@ -42,9 +42,17 @@ int main(int argc, char **args) {
   PetscViewer fd;                        /* viewer */
   char file[PETSC_MAX_PATH_LEN];  /* input file name */
   PetscErrorCode ierr;
-  PetscInt m, n, rstart, rend;
+  PetscInt m;
+  PetscInt n;
+  PetscInt rstart;
+  PetscInt rend;
   PetscBool flg;
-  PetscInt row, ncols, j, nrows, nnzA = 0, nnzAsp = 0;
+  PetscInt row;
+  PetscInt ncols;
+  PetscInt j;
+  PetscInt nrows;
+  PetscInt nnzA = 0;
+  PetscInt nnzAsp = 0;
   const PetscInt *cols;
   const PetscScalar *vals;
   PetscReal norm, percent, val, dtol = 1.e-16;
@@ -53,7 +61,7 @@ int main(int argc, char **args) {
   PetscInt Dnnz, Onnz;
 
   ierr = PetscInitialize(&argc, &args, (char *) 0, help);
-  if (ierr) return ierr;
+  if (ierr) { return ierr; }
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   CHKERRQ(ierr);
 
