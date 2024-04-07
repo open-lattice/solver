@@ -1,8 +1,6 @@
 //
 // Created by Nitel Muhtaroglu on 2023-11-06.
 //
-#include <mpi.h>
-
 #include <boost/assign.hpp>
 #include <boost/container/vector.hpp>
 #include <boost/array.hpp>
@@ -37,6 +35,27 @@ static char help[] = "Writes an array to a file, then reads an array from a "
 bool TestNonHomogeniousMfcs();
 
 int main(int argc, char **args) {
+  // Initialize the MPI environment
+  MPI_Init(nullptr, nullptr);
+
+  // Get the number of processes
+  int world_size;
+  MPI_Comm_size(MPI_COMM_WORLD, &world_size);
+
+  // Get the rank of the process
+  int world_rank;
+  MPI_Comm_rank(MPI_COMM_WORLD, &world_rank);
+
+  // Get the name of the processor
+  char processor_name[MPI_MAX_PROCESSOR_NAME];
+  int name_len;
+  MPI_Get_processor_name(processor_name, &name_len);
+
+  // Print off a hello world message
+  printf("Hello world from processor %s, rank %d out of %d processors\n",
+         processor_name, world_rank, world_size);
+
+  // Finalize the MPI environment.
   Mat Kdense;
   Mat K;
   PetscViewer fd;                        /* viewer */
@@ -59,8 +78,8 @@ int main(int argc, char **args) {
   PetscInt Dnnz, Onnz;
   ierr = PetscInitialize(&argc, &args, (char *) 0, help);
   if (ierr) { return ierr; }
-  int world_size{0};
-  MPI_Comm_size(PETSC_COMM_WORLD, &world_size);
+  int world_size_{0};
+  MPI_Comm_size(PETSC_COMM_WORLD, &world_size_);
   ierr = MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   printf("Hello world from: rank %d out of %d processes.\n", rank, world_size);
   CHKERRQ(ierr);
@@ -201,7 +220,6 @@ int main(int argc, char **args) {
     ierr = PetscViewerDestroy(&viewer);
     CHKERRQ(ierr);
   }
-
   PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
   master_stiffness_equation_.SetStiffnessMatrix(K);
 
@@ -226,6 +244,8 @@ int main(int argc, char **args) {
       constraints);
 
   master_stiffness_equation_.ApplyConstraints();
+  MPI_Finalize();
+  return 0;
   master_stiffness_equation_.Solve();
 
   //TestNonHomogeniousMfcs();

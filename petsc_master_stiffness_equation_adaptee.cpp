@@ -57,13 +57,16 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   MatAssemblyEnd(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_FINAL_ASSEMBLY);
   /* We now have T^T in stored as transformation_matrix_ */
 
+
   PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_forces_),
                                                         size - MasterStiffnessEquation::GetConstraintCount());
 
   /* application of the formula:  _f = T^T.f */
   MatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
           PetscMasterStiffnessEquationAdaptee::forces_,
-          PetscMasterStiffnessEquationAdaptee::modified_forces_);
+          PetscMasterStiffnessEquationAdaptee::modified_forces_) ;
+  return ;
+
   //std::cout << "_f: " << std::endl;
   //VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
 

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.25)
 project(multifreedom_constraints)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -18,7 +18,7 @@ target_include_directories(multifreedom_constraints PRIVATE /usr/include)
 target_include_directories(multifreedom_constraints PRIVATE /usr/include/eigen3)
 target_include_directories(multifreedom_constraints PRIVATE ${PETSC_INCLUDE})
 target_include_directories(multifreedom_constraints PRIVATE ${PETSC_DIR}/${PETSC_ARCH}/include)
-target_link_libraries(multifreedom_constraints PRIVATE ${PETSC_LIBRARIES} MPI::MPI_CXX)
+target_link_libraries(multifreedom_constraints PRIVATE ${PETSC_LIBRARIES})
 
 if (${PETSC_FOUND})
     add_executable(main main.cpp)
@@ -36,7 +36,7 @@ add_executable(
         test_petsc_master_stiffness_equation_adaptee.cpp)
 target_link_libraries(
         run_tests
-        ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} multifreedom_constraints
+        ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} multifreedom_constraints MPI::MPI_CXX
 )
 target_include_directories(run_tests PRIVATE ${GTEST_INCLUDE_DIRS} /usr/include/eigen3)
 target_include_directories(run_tests PRIVATE ${PETSC_INCLUDE} ${PETSC_DIR}/${PETSC_ARCH}/include)
