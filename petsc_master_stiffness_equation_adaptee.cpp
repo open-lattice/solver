@@ -64,8 +64,8 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   /* application of the formula:  _f = T^T.f */
   MatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
           PetscMasterStiffnessEquationAdaptee::forces_,
-          PetscMasterStiffnessEquationAdaptee::modified_forces_) ;
-  return ;
+          PetscMasterStiffnessEquationAdaptee::modified_forces_);
+  return;
 
   //std::cout << "_f: " << std::endl;
   //VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
@@ -112,23 +112,23 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
 }
 
 void PetscMasterStiffnessEquationAdaptee::Solve() {
-  KSP ksp;
-  PC pc;
-  KSPCreate(PETSC_COMM_WORLD, &ksp);
-  KSPSetOperators(ksp,
+  KSP krylov_method;
+  PC preconditioner;
+  KSPCreate(PETSC_COMM_WORLD, &krylov_method);
+  KSPSetOperators(krylov_method,
                   PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
                   PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_);
-  KSPGetPC(ksp, &pc);
-  PCSetType(pc, PCJACOBI);
-  KSPSetTolerances(ksp, 1.e-5, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);
-  KSPSetFromOptions(ksp);
+  KSPGetPC(krylov_method, &preconditioner);
+  PCSetType(preconditioner, PCJACOBI);
+  KSPSetTolerances(krylov_method, 1.e-5, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);
+  KSPSetFromOptions(krylov_method);
   PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_displacements_),
                                                         MasterStiffnessEquation::ReadActiveRowSize()
                                                             - MasterStiffnessEquation::GetConstraintCount());
-  KSPSolve(ksp,
+  KSPSolve(krylov_method,
            PetscMasterStiffnessEquationAdaptee::modified_forces_,
            PetscMasterStiffnessEquationAdaptee::modified_displacements_);
-  KSPDestroy(&ksp);
+  KSPDestroy(&krylov_method);
 
   //std::cout << "_u: " << std::endl;
   //VecView(PetscMasterStiffnessEquationAdaptee::modified_displacements_, PETSC_VIEWER_STDOUT_WORLD);

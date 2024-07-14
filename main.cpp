@@ -47,7 +47,7 @@ int main(int argc, char **args) {
   PetscInt rend;
   PetscBool flg;
   PetscInt ncols;
-  PetscInt nrows;
+  PetscInt number_of_rows;
   PetscInt nnzA = 0;
   PetscInt nnzAsp = 0;
   const PetscInt *cols;
@@ -94,7 +94,7 @@ int main(int argc, char **args) {
 
   /* Check zero rows */
   MatGetOwnershipRange(Kdense, &rstart, &rend);
-  nrows = 0;
+  number_of_rows = 0;
   for (PetscInt row{rstart}; row < rend; row++) {
     MatGetRow(Kdense, row, &ncols, &cols, &vals);
     nnzA += ncols;
@@ -110,7 +110,7 @@ int main(int argc, char **args) {
         nnzAsp++;
       }
     }
-    if (!norm) { ++nrows; }
+    if (!norm) { ++number_of_rows; }
     MatRestoreRow(Kdense, row, &ncols, &cols, &vals);
   }
   MatAssemblyBegin(K, MAT_FINAL_ASSEMBLY);
@@ -124,44 +124,46 @@ int main(int argc, char **args) {
               n,
               nnzA,
               percent,
-              nrows);
+              number_of_rows);
   percent = (PetscReal) nnzAsp * 100 / (m * n);
   PetscPrintf(PETSC_COMM_SELF, " [%d] Matrix K nnzAsp %d, %g percent\n", rank, nnzAsp, percent);
 
   PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
   master_stiffness_equation_.SetStiffnessMatrix(K);
 
-  Vec            x,y;
+  Vec forces_, displacements_;
   int total_ranks;
   PetscScalar one = 1.0;
   PetscScalar zero = 0.0;
-  MatCreateVecs(K, &x, &y);
-  //ierr = VecCreate(PETSC_ICOMM_WORLD,&x);CHKERRQ(ierr);
-  //ierr = VecSetType(x,VECMPI);
-  //ierr = VecSetSizes(x,m/total_ranks,m);CHKERRQ(ierr); //Force local size instead of PETSC_DECIDE
-  //ierr = VecSetFromOptions(x);CHKERRQ(ierr);
+  MatCreateVecs(K, &forces_, &displacements_);
+  //ierr = VecCreate(PETSC_ICOMM_WORLD,&forces_);CHKERRQ(ierr);
+  //ierr = VecSetType(forces_,VECMPI);
+  //ierr = VecSetSizes(forces_,m/total_ranks,m);CHKERRQ(ierr); //Force local size instead of PETSC_DECIDE
+  //ierr = VecSetFromOptions(forces_);CHKERRQ(ierr);
 
- // ierr = VecSetType(x,VECMPI);
- // ierr = VecCreate(PETSC_COMM_WORLD,&y);CHKERRQ(ierr);
- // ierr = VecSetSizes(y,m/total_ranks,m);CHKERRQ(ierr); //Force local size instead of PETSC_DECIDE
- // ierr = VecSetFromOptions(y);CHKERRQ(ierr);
+  // ierr = VecSetType(forces_,VECMPI);
+  // ierr = VecCreate(PETSC_COMM_WORLD,&displacements_);CHKERRQ(ierr);
+  // ierr = VecSetSizes(displacements_,m/total_ranks,m);CHKERRQ(ierr); //Force local size instead of PETSC_DECIDE
+  // ierr = VecSetFromOptions(displacements_);CHKERRQ(ierr);
 
-  ierr = VecSet(x,one);CHKERRQ(ierr);
-  ierr = VecSet(y,zero); CHKERRQ(ierr);
+  ierr = VecSet(forces_, one);
+  CHKERRQ(ierr);
+  ierr = VecSet(displacements_, zero);
+  CHKERRQ(ierr);
 
 
 
 /* SpMV*/
-  ierr = MatMult(K,x,y);CHKERRQ(ierr);
-  //MatView(K, PETSC_VIEWER_STDOUT_WORLD);
+  //ierr = MatMult(K, forces_, displacements_);CHKERRQ(ierr);
+  MatView(K, PETSC_VIEWER_STDOUT_WORLD);
   //MatView(K, PETSC_VIEWER_DRAW_WORLD);
-  VecView(x, PETSC_VIEWER_STDOUT_WORLD);
-  VecView(y, PETSC_VIEWER_STDOUT_WORLD);
-  //VecView(y, PETSC_VIEWER_DRAW_WORLD);
-  ierr = VecDestroy(&x);CHKERRQ(ierr);
-  ierr = VecDestroy(&y);CHKERRQ(ierr);
-  ierr = MatDestroy(&K);CHKERRQ(ierr);
-  Vec forces;
+  VecView(forces_, PETSC_VIEWER_STDOUT_WORLD);
+  VecView(displacements_, PETSC_VIEWER_STDOUT_WORLD);
+  //VecView(displacements_, PETSC_VIEWER_DRAW_WORLD);
+  //ierr = VecDestroy(&forces_);CHKERRQ(ierr);
+  //ierr = VecDestroy(&displacements_);CHKERRQ(ierr);
+  //ierr = MatDestroy(&K);CHKERRQ(ierr);
+  //Vec forces;
   //VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, n, &forces);
   //VecSetType(forces, VECMPI);
   //VecSetFromOptions(forces);
@@ -170,22 +172,21 @@ int main(int argc, char **args) {
   //VecSetValue(forces, 2, 80.0F, INSERT_VALUES);
   //VecAssemblyBegin(forces);
   //VecAssemblyEnd(forces);
-  //master_stiffness_equation_.SetForces(forces);
+  master_stiffness_equation_.SetForces(forces_);
 
-  //boost::container::vector<Term> master_terms;
-  ////master_terms.push_back(Term(5, -1.0F));
-  //for (int i{1}; i < nrows; ++i) {
-  //  master_terms.push_back(Term(i, 1.0F));
-  //}
+  boost::container::vector<Term> master_terms;
+  //master_terms.push_back(Term(5, -1.0F));
+  for (int i{1}; i < number_of_rows; ++i) {
+    master_terms.push_back(Term(i, 1.0F));
+  }
 
-  //boost::container::vector constraints{Constraint(Term(0, 1.0F), master_terms)};
-  //master_stiffness_equation_.SetConstraints(
-  //    constraints);
+  boost::container::vector constraints{Constraint(Term(0, 1.0F), master_terms)};
+  master_stiffness_equation_.SetConstraints(constraints);
 
-  //master_stiffness_equation_.ApplyConstraints();
+  master_stiffness_equation_.ApplyConstraints();
+  master_stiffness_equation_.Solve();
   PetscFinalize();
   return 0;
-  master_stiffness_equation_.Solve();
 
   //TestNonHomogeniousMfcs();
 
