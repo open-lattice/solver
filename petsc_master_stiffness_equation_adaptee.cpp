@@ -32,6 +32,10 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
                             column_index.data(),
                             values.data(),
                             &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
+  PetscInt m;
+  PetscInt n;
+  MatGetSize(transformation_matrix_, &m, &n);
+  printf("Sizes: %d %d\n", m, n);
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
                &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
@@ -62,14 +66,18 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
                                                         size - MasterStiffnessEquation::GetConstraintCount());
 
   /* application of the formula:  _f = T^T.f */
+  MatView(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+  MatCreateVecs(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, &forces_, &modified_forces_);
   MatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
           PetscMasterStiffnessEquationAdaptee::forces_,
           PetscMasterStiffnessEquationAdaptee::modified_forces_);
+
+  std::cout << "f: " << std::endl;
+  VecView(PetscMasterStiffnessEquationAdaptee::forces_, PETSC_VIEWER_STDOUT_WORLD);
+  std::cout << "_f: " << std::endl;
+  VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
+
   return;
-
-  //std::cout << "_f: " << std::endl;
-  //VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
-
   /* application of the formula(divided into three steps):  _K = T^T.K.T => _K = (T^T.K).T */
   /* get T^T.K */
   /* create _K matrix */

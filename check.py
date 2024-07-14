@@ -1,7 +1,4 @@
 import numpy as np
-import pandas as pd
-import scipy.interpolate as si
-import matplotlib.pyplot as plt
 
 
 def check():
@@ -9,22 +6,33 @@ def check():
         [[100, -100, 0, 0, 0, 0], [-100, 200, -100, 0, 0, 0], [0, -100, 200, -100, 0, 0], [0, 0, -100, 200, -100, 0],
          [0, 0, 0, -100, 200, -100], [0, 0, 0, 0, -100, 200]])
     f = np.array([-20, 0, 0, 0, 0, 0])
-    #f = np.array([-90, 0, 80, 0, 0, 0])
+    # f = np.array([-90, 0, 80, 0, 0, 0])
     T = np.array([[0, 0, 0, 0, 1], [1, 0, 0, 0, 0], [0, 1, 0, 0, 0], [0, 0, 1, 0, 0], [0, 0, 0, 1, 0],
                   [0, 0, 0, 0, 1]])
     Tt = T.transpose()
 
     _f = Tt.dot(f)
+    print("-------------")
+    print("f:", f)
+    print("")
     print("_f:", _f)
+    print("-------------")
 
     _K = (Tt.dot(K)).dot(T)
+    print("-------------")
+    print("K:", K)
+    print("")
     print("_K:", _K)
+    print("-------------")
 
     _u = np.linalg.solve(_K, _f)
-    print("_u:", _u)
-
     u = T.dot(_u)
+    print("-------------")
     print("u: ", u)
+    print("")
+    print("_u:", _u)
+    print("-------------")
+
     print("constraint check", u[0] - u[5])
 
 

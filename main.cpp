@@ -146,19 +146,21 @@ int main(int argc, char **args) {
   // ierr = VecSetSizes(displacements_,m/total_ranks,m);CHKERRQ(ierr); //Force local size instead of PETSC_DECIDE
   // ierr = VecSetFromOptions(displacements_);CHKERRQ(ierr);
 
-  ierr = VecSet(forces_, one);
+  ierr = VecSet(forces_, zero);
+  VecSetValue(forces_, 0, -20.0F, INSERT_VALUES);
   CHKERRQ(ierr);
   ierr = VecSet(displacements_, zero);
   CHKERRQ(ierr);
-
+  VecAssemblyBegin(forces_);
+  VecAssemblyEnd(forces_);
 
 
 /* SpMV*/
   //ierr = MatMult(K, forces_, displacements_);CHKERRQ(ierr);
-  MatView(K, PETSC_VIEWER_STDOUT_WORLD);
+  //MatView(K, PETSC_VIEWER_STDOUT_WORLD);
   //MatView(K, PETSC_VIEWER_DRAW_WORLD);
-  VecView(forces_, PETSC_VIEWER_STDOUT_WORLD);
-  VecView(displacements_, PETSC_VIEWER_STDOUT_WORLD);
+  //VecView(forces_, PETSC_VIEWER_STDOUT_WORLD);
+  //VecView(displacements_, PETSC_VIEWER_STDOUT_WORLD);
   //VecView(displacements_, PETSC_VIEWER_DRAW_WORLD);
   //ierr = VecDestroy(&forces_);CHKERRQ(ierr);
   //ierr = VecDestroy(&displacements_);CHKERRQ(ierr);
@@ -175,16 +177,16 @@ int main(int argc, char **args) {
   master_stiffness_equation_.SetForces(forces_);
 
   boost::container::vector<Term> master_terms;
-  //master_terms.push_back(Term(5, -1.0F));
-  for (int i{1}; i < number_of_rows; ++i) {
-    master_terms.push_back(Term(i, 1.0F));
-  }
+  master_terms.push_back(Term(5, -1.0F));
+  //for (int i{1}; i < number_of_rows; ++i) {
+  //  master_terms.push_back(Term(i, 1.0F));
+  //}
 
   boost::container::vector constraints{Constraint(Term(0, 1.0F), master_terms)};
   master_stiffness_equation_.SetConstraints(constraints);
 
   master_stiffness_equation_.ApplyConstraints();
-  master_stiffness_equation_.Solve();
+  //master_stiffness_equation_.Solve();
   PetscFinalize();
   return 0;
 
