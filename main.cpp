@@ -131,7 +131,8 @@ int main(int argc, char **args) {
   PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
   master_stiffness_equation_.SetStiffnessMatrix(K);
 
-  Vec forces_, displacements_;
+  Vec displacements_;
+  Vec forces_;
   int total_ranks;
   PetscScalar one = 1.0;
   PetscScalar zero = 0.0;
@@ -157,7 +158,12 @@ int main(int argc, char **args) {
 
 /* SpMV*/
   //ierr = MatMult(K, forces_, displacements_);CHKERRQ(ierr);
-  //MatView(K, PETSC_VIEWER_STDOUT_WORLD);
+  MatView(K, PETSC_VIEWER_STDOUT_WORLD);
+
+  PetscInt _m;
+  PetscInt _n;
+  MatGetSize(K, &_m, &_n);
+  printf("K (sparse) sizes: %d %d\n", _m, _n);
   //MatView(K, PETSC_VIEWER_DRAW_WORLD);
   //VecView(forces_, PETSC_VIEWER_STDOUT_WORLD);
   //VecView(displacements_, PETSC_VIEWER_STDOUT_WORLD);

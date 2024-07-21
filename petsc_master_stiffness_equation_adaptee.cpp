@@ -23,8 +23,10 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
     }
   }
 
+  int world_size_{0};
+  MPI_Comm_size(PETSC_COMM_WORLD, &world_size_);
   MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD,
-                            size,
+                            size / world_size_,
                             PETSC_DECIDE,
                             PETSC_DETERMINE,
                             size - MasterStiffnessEquation::GetConstraintCount(),
@@ -35,11 +37,14 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   PetscInt m;
   PetscInt n;
   MatGetSize(transformation_matrix_, &m, &n);
-  printf("Sizes: %d %d\n", m, n);
+  printf("Transformation Matrix sizes: %d %d\n", m, n);
+  MatView(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
                &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
+  MatGetSize(transformation_matrix_, &m, &n);
   MatSetOption(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_NEW_NONZERO_LOCATIONS, PETSC_TRUE);
+  printf("Transposed Transformation Matrix sizes: %d %d\n", m, n);
   boost::container::vector<PetscInt> rows;
   for (const auto &constraint : MasterStiffnessEquation::GetConstraints()) {
     //VecSetValue(PetscMasterStiffnessEquationAdaptee::gaps_,
