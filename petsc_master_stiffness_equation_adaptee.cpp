@@ -28,10 +28,21 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   PetscMPIInt rank;
   MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
   printf("Rank: %d \n", rank);
+
   PetscMPIInt chunk_size{static_cast<PetscMPIInt>(size / world_size_)};
+  PetscMPIInt remainder{static_cast<PetscMPIInt>(size - world_size_ * chunk_size)};
+  printf("Chunk size: %d\n", chunk_size);
+  printf("remainder size: %d\n", remainder);
+  for (int i{0}; i < remainder; ++i) {
+    if (i == rank) {
+      ++chunk_size;
+    }
+  }
+
   for (int i{rank * chunk_size}; i < (rank + 1) * chunk_size; ++i) {
     printf("%d ", i);
   }
+
   printf("\n");
   MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD,
                             size / world_size_,
