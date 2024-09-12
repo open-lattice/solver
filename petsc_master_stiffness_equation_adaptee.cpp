@@ -1,39 +1,71 @@
 //
 // Created by Nitel Muhtaroglu on 2023-12-23.
 //
+
 #include "petsc_master_stiffness_equation_adaptee.h"
 
 PetscMasterStiffnessEquationAdaptee::PetscMasterStiffnessEquationAdaptee() = default;
 
 void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
   static unsigned long size{MasterStiffnessEquation::ReadActiveRowSize()};
-  boost::container::vector<PetscScalar> non_zero_values(size - MasterStiffnessEquation::GetConstraintCount(), 1.0F);
-  boost::container::vector<PetscInt> column_numbers;
+  InitializeGlobalToMasterIndicesLookupTable(size);
+  boost::container::vector<PetscScalar> values(size - MasterStiffnessEquation::GetConstraintCount(), 1.0F);
+  boost::container::vector<PetscInt> column_index;
   for (int i{0}; i < size - MasterStiffnessEquation::GetConstraintCount(); ++i) {
-    column_numbers.push_back(i);
+    column_index.push_back(i);
   }
-  boost::container::vector<PetscInt> beginning_of_each_row{0};
-  for (int i{0}; i < size; ++i) {
+  boost::container::vector<PetscInt> row_index{0};
+  for (unsigned long i{0}; i < size; ++i) {
     if (MasterStiffnessEquation::IsSlaveIndexForAConstraint(i)) {
-      beginning_of_each_row.push_back(beginning_of_each_row.at(i));
+      row_index.push_back(row_index.at(i));
     } else {
-      beginning_of_each_row.push_back(beginning_of_each_row.at(i) + 1);
+      row_index.push_back(row_index.at(i) + 1);
     }
   }
 
+  int world_size_{0};
+  MPI_Comm_size(PETSC_COMM_WORLD, &world_size_);
+  PetscMPIInt rank;
+  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
+
+  PetscMPIInt chunk_size{static_cast<PetscMPIInt>(size / world_size_)};
+  boost::container::vector<PetscInt> chunk_sizes(world_size_, chunk_size);
+  boost::container::vector<PetscInt> indices(world_size_ + 1, 0);
+  PetscMPIInt remainder{static_cast<PetscMPIInt>(size - world_size_ * chunk_size)};
+  for (int i{0}; i < remainder; ++i) {
+    ++chunk_sizes.at(i);
+  }
+  for (int i{0}; i < chunk_sizes.size(); ++i) {
+    indices.at(i + 1) = indices.at(i) + chunk_sizes.at(i);
+  }
+  printf("\n");
+  printf("Content of %d: \n", rank);
+  for (int i{indices.at(rank)}; i < indices.at(rank + 1); ++i) {
+    printf("%d ", i);
+  }
+  printf("\n");
+  printf("\n");
+
   MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD,
-                            size,
-                            size,
+                            size / world_size_,
+                            PETSC_DECIDE,
                             PETSC_DETERMINE,
-                            PETSC_DETERMINE,
-                            beginning_of_each_row.data(),
-                            column_numbers.data(),
-                            non_zero_values.data(),
+                            size - MasterStiffnessEquation::GetConstraintCount(),
+                            row_index.data(),
+                            column_index.data(),
+                            values.data(),
                             &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
+  PetscInt m;
+  PetscInt n;
+  MatGetSize(transformation_matrix_, &m, &n);
+  printf("Transformation Matrix sizes: %d %d\n", m, n);
+  MatView(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
                &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
+  MatGetSize(transformation_matrix_, &m, &n);
   MatSetOption(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_NEW_NONZERO_LOCATIONS, PETSC_TRUE);
+  printf("Transposed Transformation Matrix sizes: %d %d\n", m, n);
   boost::container::vector<PetscInt> rows;
   for (const auto &constraint : MasterStiffnessEquation::GetConstraints()) {
     //VecSetValue(PetscMasterStiffnessEquationAdaptee::gaps_,
@@ -44,70 +76,106 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
 
     for (const auto &master_term : constraint.GetMasterTerms()) {
       MatSetValue(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
-                  master_term.GetIndex() - 1, //TODO: Make this work with any constraint combination.
+                  PetscMasterStiffnessEquationAdaptee::global_to_master_indices_lookup_.left.find(master_term.GetIndex())->second,
                   constraint.GetSlaveTermIndex(),
-                  -master_term.GetCoefficient() / constraint.GetSlaveTermCoefficient(),
+                  -1.0F * master_term.GetCoefficient() / constraint.GetSlaveTermCoefficient(),
                   INSERT_VALUES);
     }
   }
 
   MatAssemblyBegin(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_FINAL_ASSEMBLY);
   MatAssemblyEnd(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_FINAL_ASSEMBLY);
-  //MatZeroRows(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, rows.size(), rows.data(), 0.0,
-  //          nullptr, nullptr);
+  /* We now have T^T in stored as transformation_matrix_ */
+
+
+  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_forces_),
+                                                        size - MasterStiffnessEquation::GetConstraintCount());
+
+  /* application of the formula:  _f = T^T.f */
+  MatView(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+  MatCreateVecs(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, &forces_, &modified_forces_);
+  MatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
+          PetscMasterStiffnessEquationAdaptee::forces_,
+          PetscMasterStiffnessEquationAdaptee::modified_forces_);
+
+  std::cout << "f: " << std::endl;
+  VecView(PetscMasterStiffnessEquationAdaptee::forces_, PETSC_VIEWER_STDOUT_WORLD);
+  std::cout << "_f: " << std::endl;
+  VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
+
+  return;
+  /* application of the formula(divided into three steps):  _K = T^T.K.T => _K = (T^T.K).T */
+  /* get T^T.K */
+  /* create _K matrix */
+  /* Get a sparse matrix K by dumping zero entries of Kdense */
+  MatCreate(PETSC_COMM_WORLD, &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
+  MatSetSizes(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
+              size,
+              size - MasterStiffnessEquation::GetConstraintCount(),
+              PETSC_DECIDE,
+              PETSC_DECIDE);
+  MatSetType(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, MATMPIAIJ);
+
+  /* The allocation above is approximate so we must set this option to be permissive.
+   * Real code should preallocate exactly. */
+  MatSetOption(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
+               MAT_NEW_NONZERO_LOCATION_ERR,
+               PETSC_FALSE);
+
+  MatAssemblyBegin(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, MAT_FINAL_ASSEMBLY);
+  MatAssemblyEnd(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, MAT_FINAL_ASSEMBLY);
+
+  MatMatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
+             PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
+             MAT_INITIAL_MATRIX,
+             PETSC_DEFAULT,
+             &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
+  /* get T */
   MatTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
                MAT_INPLACE_MATRIX,
                &(PetscMasterStiffnessEquationAdaptee::transformation_matrix_));
-  MatView(transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
-  //VecScale(PetscMasterStiffnessEquationAdaptee::gaps_, -1.0F);
-  //Vec temporary_vector;
-  //PetscMasterStiffnessEquationAdaptee::InitializeVector(&temporary_vector);
-  //MatMultAdd(PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
-  //           PetscMasterStiffnessEquationAdaptee::gaps_,
-  //           PetscMasterStiffnessEquationAdaptee::forces_,
-  //           temporary_vector);
-  //VecScale(PetscMasterStiffnessEquationAdaptee::gaps_, -1.0F);
-  //PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_forces_));
-  //MatMultTranspose(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
-  //                 temporary_vector,
-  //                 PetscMasterStiffnessEquationAdaptee::modified_forces_);
-  //VecDestroy(&temporary_vector);
-  //MatProductSetFromOptions(PetscMasterStiffnessEquationAdaptee::transformation_matrix_);
-  //MatTransposeMatMult(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
-  //                    PetscMasterStiffnessEquationAdaptee::stiffness_matrix_,
-  //                    MAT_INITIAL_MATRIX,
-  //                    PETSC_DEFAULT,
-  //                    &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
-  //MatMatMult(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
-  //           PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
-  //           MAT_INITIAL_MATRIX,
-  //           PETSC_DECIDE,
-  //           &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
+  /* (T^T.K).T */
+  MatMatMult(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
+             PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
+             MAT_INITIAL_MATRIX,
+             PETSC_DEFAULT,
+             &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
 
+  //std::cout << "_K: " << std::endl;
+  //MatView(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
 }
 
 void PetscMasterStiffnessEquationAdaptee::Solve() {
-  KSP ksp;
-  PC pc;
-  KSPCreate(PETSC_COMM_WORLD, &ksp);
-  KSPSetOperators(ksp,
+  KSP krylov_method;
+  PC preconditioner;
+  KSPCreate(PETSC_COMM_WORLD, &krylov_method);
+  KSPSetOperators(krylov_method,
                   PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_,
                   PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_);
-  KSPGetPC(ksp, &pc);
-  PCSetType(pc, PCJACOBI);
-  KSPSetTolerances(ksp, 1.e-5, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);
-  KSPSetFromOptions(ksp);
-  InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_displacements_));
-  KSPSolve(ksp,
+  KSPGetPC(krylov_method, &preconditioner);
+  PCSetType(preconditioner, PCJACOBI);
+  KSPSetTolerances(krylov_method, 1.e-5, PETSC_DEFAULT, PETSC_DEFAULT, PETSC_DEFAULT);
+  KSPSetFromOptions(krylov_method);
+  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::modified_displacements_),
+                                                        MasterStiffnessEquation::ReadActiveRowSize()
+                                                            - MasterStiffnessEquation::GetConstraintCount());
+  KSPSolve(krylov_method,
            PetscMasterStiffnessEquationAdaptee::modified_forces_,
            PetscMasterStiffnessEquationAdaptee::modified_displacements_);
-  KSPDestroy(&ksp);
+  KSPDestroy(&krylov_method);
 
-  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::displacements_));
+  //std::cout << "_u: " << std::endl;
+  //VecView(PetscMasterStiffnessEquationAdaptee::modified_displacements_, PETSC_VIEWER_STDOUT_WORLD);
+  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::displacements_),
+                                                        MasterStiffnessEquation::ReadActiveRowSize());
+  PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::gaps_),
+                                                        MasterStiffnessEquation::ReadActiveRowSize());
   MatMultAdd(PetscMasterStiffnessEquationAdaptee::transformation_matrix_,
              PetscMasterStiffnessEquationAdaptee::modified_displacements_,
              PetscMasterStiffnessEquationAdaptee::gaps_,
              PetscMasterStiffnessEquationAdaptee::displacements_);
+  std::cout << "u: " << std::endl;
+  VecView(PetscMasterStiffnessEquationAdaptee::displacements_, PETSC_VIEWER_STDOUT_WORLD);
 }
 
 void PetscMasterStiffnessEquationAdaptee::SetStiffnessMatrix(const Mat &stiffness_matrix) {
@@ -158,10 +226,33 @@ void PetscMasterStiffnessEquationAdaptee::SetGaps(const Vec &gaps) {
 [[nodiscard]] const Vec &PetscMasterStiffnessEquationAdaptee::GetDisplacements() const {
   return PetscMasterStiffnessEquationAdaptee::displacements_;
 }
-void PetscMasterStiffnessEquationAdaptee::InitializeVector(Vec *vec) {
-  VecCreate(PETSC_COMM_WORLD, vec);
-  VecSetSizes(*vec, MasterStiffnessEquation::ReadActiveRowSize(), PETSC_DECIDE);
-  VecSetFromOptions(*vec);
-  VecSet(*vec, 0.0F);
+void PetscMasterStiffnessEquationAdaptee::InitializeVector(Vec *vector, PetscInt size) {
+  VecCreateMPI(PETSC_COMM_WORLD,
+               PETSC_DECIDE,
+               size,
+               vector);
+  VecSetFromOptions(*vector);
+  VecSet(*vector, 0.0F);
+  VecAssemblyBegin(*vector);
+  VecAssemblyEnd(*vector);
 }
 
+unsigned long PetscMasterStiffnessEquationAdaptee::InitializeGlobalToMasterIndicesLookupTable(unsigned long problem_size) {
+  PetscMasterStiffnessEquationAdaptee::global_to_master_indices_lookup_.clear();
+  std::unordered_set<unsigned long> slave_indices_for_constraints;
+
+  for (auto i{0}; i < MasterStiffnessEquation::GetConstraintCount(); ++i) {
+    slave_indices_for_constraints.insert(MasterStiffnessEquation::GetConstraint(i).GetSlaveTermIndex());
+  }
+
+  unsigned long master_index_for_constraint{0};
+  for (int i{0}; i < problem_size; ++i) {
+    if (slave_indices_for_constraints.find(i) == slave_indices_for_constraints.end()) {
+      PetscMasterStiffnessEquationAdaptee::global_to_master_indices_lookup_.insert(boost::bimap<unsigned long,
+                                                                                                unsigned long>::value_type(
+          i,
+          master_index_for_constraint++));
+    }
+  }
+  return PetscMasterStiffnessEquationAdaptee::global_to_master_indices_lookup_.size();
+}

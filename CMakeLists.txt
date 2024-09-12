@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.15)
+cmake_minimum_required(VERSION 3.25)
 project(multifreedom_constraints)
 
 set(CMAKE_CXX_STANDARD 17)
@@ -8,7 +8,8 @@ set(ENV{PETSC_DIR} /home/nitelm/workspace/petsc)
 set(ENV{PETSC_ARCH} arch-linux-c-debug)
 set(PETSC_INCLUDE /home/nitelm/workspace/petsc/include)
 
-find_package(PETSc)
+find_package(PETSc REQUIRED)
+find_package(MPI REQUIRED)
 add_library(multifreedom_constraints SHARED constraint.cpp constraint.h
         eigen_master_stiffness_equation_adaptee.cpp eigen_master_stiffness_equation_adaptee.h
         petsc_master_stiffness_equation_adaptee.cpp petsc_master_stiffness_equation_adaptee.h
@@ -35,7 +36,7 @@ add_executable(
         test_petsc_master_stiffness_equation_adaptee.cpp)
 target_link_libraries(
         run_tests
-        ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} multifreedom_constraints
+        ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} multifreedom_constraints MPI::MPI_CXX
 )
 target_include_directories(run_tests PRIVATE ${GTEST_INCLUDE_DIRS} /usr/include/eigen3)
 target_include_directories(run_tests PRIVATE ${PETSC_INCLUDE} ${PETSC_DIR}/${PETSC_ARCH}/include)
