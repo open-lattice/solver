@@ -1,264 +1,345 @@
-//
-// Created by Nitel Muhtaroglu on 2023-11-06.
-//
+#include <iostream>
+#include <petscvec.h>
+#include <petscerror.h>
+
 #include <boost/assign.hpp>
 #include <boost/container/vector.hpp>
 #include <boost/array.hpp>
+#include <boost/assert.hpp>
+#include <unordered_set>
 
-#include <gtest/gtest.h>
+#include <sstream>
+#include <fstream>
+#include <string>
+
+#include <ctime>
+#include <random>
 
 #include "constraint.h"
 #include "petsc_master_stiffness_equation_adaptee.h"
 #include "term.hpp"
 
-#include <petscmat.h>
-#include <petscsys.h>
-#include <petscvec.h>
-#include <petscerror.h>
+std::tuple<int, Mat> read_matrix_from_mtx(const char* mtx_file);
+boost::container::vector<Constraint> generate_constraints(PetscInt size, PetscInt nC, std::mt19937 gen,
+    PetscInt nm_max = 4, float max_coeff = 5.0);
+bool homogenous_manual_constraints_trial(int argc, char **args);
 
-static char help[] = "Writes an array to a file, then reads an array from a "
-                     "file, then forms a vector.\n\n";
+int main(int argc, char **argv) {
+    PetscInitialize(&argc, &argv, nullptr, nullptr);
+    PetscErrorCode err;
+    PetscInt nrows, ncols;
+    bool print_constraints = false;
+    bool print_mat = false;
+    double sparsity;
 
-/*
-    This uses the low level PetscBinaryWrite() and PetscBinaryRead() to access a
-   binary file. It will not work in parallel!
+    PetscMPIInt rank;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 
-    We HIGHLY recommend using instead VecView() and VecLoad() to read and write
-   Vectors in binary format (which also work in parallel). Then you can use
-    share/petsc/matlab/PetscBinaryRead() and
-   share/petsc/matlab/PetscBinaryWrite() to read (or write) the vector into
-   MATLAB.
-
-    Note this also works for matrices with MatView() and MatLoad().
-*/
-
-bool TestNonHomogeniousMfcs();
-
-int main(int argc, char **args) {
-  // Initialize the MPI environment
-  Mat Kdense;
-  Mat K;
-  PetscViewer fd;                        /* viewer */
-  char file[PETSC_MAX_PATH_LEN];  /* input file name */
-  PetscErrorCode ierr;
-  PetscInt m;
-  PetscInt n;
-  PetscInt rstart;
-  PetscInt rend;
-  PetscBool flg;
-  PetscInt ncols;
-  PetscInt number_of_rows;
-  PetscInt nnzA = 0;
-  PetscInt nnzAsp = 0;
-  const PetscInt *cols;
-  const PetscScalar *vals;
-  PetscReal norm, percent, val, dtol = 1.e-16;
-  PetscMPIInt rank;
-  MatInfo matinfo;
-  PetscInt Dnnz, Onnz;
-  PetscInitialize(&argc, &args, (char *) 0, help);
-  int world_size_{0};
-  MPI_Comm_size(PETSC_COMM_WORLD, &world_size_);
-  MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
-
-  /* Determine files from which we read the linear systems. */
-  PetscOptionsGetString(NULL, NULL, "-f", file, PETSC_MAX_PATH_LEN, &flg);
-  if (!flg) SETERRQ(PETSC_COMM_WORLD, 1, "Must indicate binary file with the -f option");
-
-  /* Open binary file.  Note that we use FILE_MODE_READ to indicate
-     reading from this file. */
-  PetscViewerBinaryOpen(PETSC_COMM_WORLD, file, FILE_MODE_READ, &fd);
-
-  /* Load the matrix; then destroy the viewer. */
-  MatCreate(PETSC_COMM_WORLD, &Kdense);
-  MatSetOptionsPrefix(Kdense, "a_");
-  MatSetFromOptions(Kdense);
-  MatLoad(Kdense, fd);
-  PetscViewerDestroy(&fd);
-  MatGetSize(Kdense, &m, &n);
-  MatGetInfo(Kdense, MAT_LOCAL, &matinfo);
-
-  /* Get a sparse matrix K by dumping zero entries of Kdense */
-  MatCreate(PETSC_COMM_WORLD, &K);
-  MatSetSizes(K, PETSC_DECIDE, PETSC_DECIDE, m, n);
-  //MatSetOptionsPrefix(K, "asp_");
-  MatSetOption(K, MAT_STRUCTURE_ONLY, PETSC_TRUE);
-  MatSetType(K, MATMPISBAIJ);
-  Dnnz = (PetscInt) matinfo.nz_used / m + 1;
-  Onnz = Dnnz / 2;
-  printf("Dnnz %d %d\n", Dnnz, Onnz);
-  MatMPISBAIJSetPreallocation(K, 1, Dnnz, NULL, Onnz, NULL);
-  /* The allocation above is approximate, so we must set this option to be permissive.
-   * Real code should preallocate exactly. */
-  MatSetOption(K, MAT_NEW_NONZERO_LOCATION_ERR, PETSC_FALSE);
-
-  /* Check zero rows */
-  MatGetOwnershipRange(Kdense, &rstart, &rend);
-  number_of_rows = 0;
-  for (PetscInt row{rstart}; row < rend; row++) {
-    MatGetRow(Kdense, row, &ncols, &cols, &vals);
-    nnzA += ncols;
-    norm = 0.0;
-    for (int j{0}; j < ncols; ++j) {
-      val = PetscAbsScalar(vals[j]);
-      if (norm < val) { norm = norm; }
-      if (val > dtol) {
-        MatSetValues(K, 1, &row, 1, &cols[j], &vals[j], INSERT_VALUES);
-        if (row != cols[j]) {
-          MatSetValues(K, 1, &cols[j], 1, &row, &vals[j], INSERT_VALUES);
+    if (argc != 3) {
+        if (rank == 0) {
+            PetscPrintf(PETSC_COMM_WORLD, "Usage: %s input.mtx number_of_constraints\n", argv[0]);
         }
-        nnzAsp++;
-      }
+        PetscFinalize();
+        return -1;
     }
-    if (!norm) { ++number_of_rows; }
-    MatRestoreRow(Kdense, row, &ncols, &cols, &vals);
-  }
-  MatAssemblyBegin(K, MAT_FINAL_ASSEMBLY);
-  MatAssemblyEnd(K, MAT_FINAL_ASSEMBLY);
 
-  percent = (PetscReal) nnzA * 100 / (m * n);
-  PetscPrintf(PETSC_COMM_SELF,
-              " [%d] Matrix Kdense local size %d,%d; nnzA %d, %g percent; No. of zero rows: %d\n",
-              rank,
-              m,
-              n,
-              nnzA,
-              percent,
-              number_of_rows);
-  percent = (PetscReal) nnzAsp * 100 / (m * n);
-  PetscPrintf(PETSC_COMM_SELF, " [%d] Matrix K nnzAsp %d, %g percent\n", rank, nnzAsp, percent);
+    const char* mtx_file = argv[1];
+    const PetscInt nC = atoi(argv[2]);
 
-  PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
-  master_stiffness_equation_.SetStiffnessMatrix(K);
+    double total_start = MPI_Wtime();
 
-  Vec displacements_;
-  Vec forces_;
-  int total_ranks;
-  PetscScalar one = 1.0;
-  PetscScalar zero = 0.0;
-  MatCreateVecs(K, &forces_, &displacements_);
-  //ierr = VecCreate(PETSC_ICOMM_WORLD,&forces_);CHKERRQ(ierr);
-  //ierr = VecSetType(forces_,VECMPI);
-  //ierr = VecSetSizes(forces_,m/total_ranks,m);CHKERRQ(ierr); //Force local size instead of PETSC_DECIDE
-  //ierr = VecSetFromOptions(forces_);CHKERRQ(ierr);
+    auto [nnz, K] = read_matrix_from_mtx(mtx_file);
 
-  // ierr = VecSetType(forces_,VECMPI);
-  // ierr = VecCreate(PETSC_COMM_WORLD,&displacements_);CHKERRQ(ierr);
-  // ierr = VecSetSizes(displacements_,m/total_ranks,m);CHKERRQ(ierr); //Force local size instead of PETSC_DECIDE
-  // ierr = VecSetFromOptions(displacements_);CHKERRQ(ierr);
+    MatGetSize(K, &nrows, &ncols);
+    const int kGlobalProblemSize = nrows;
 
-  ierr = VecSet(forces_, zero);
-  VecSetValue(forces_, 0, -20.0F, INSERT_VALUES);
-  CHKERRQ(ierr);
-  ierr = VecSet(displacements_, zero);
-  CHKERRQ(ierr);
-  VecAssemblyBegin(forces_);
-  VecAssemblyEnd(forces_);
+    if (print_mat)
+        MatView(K, PETSC_VIEWER_STDOUT_SELF);
 
+    // --- Matrix Info Output ---
+    if (rank == 0) {
+        sparsity = 1.0 - static_cast<double>(nnz * 2 - nrows) / (nrows * ncols);
+        PetscPrintf(PETSC_COMM_WORLD,
+            "Matrix Info:\n"
+            " - Global Rows: %d\n"
+            " - Global Cols: %d\n"
+            " - Non-zeros: %d\n"
+            " - Sparsity: %.6f\n\n",
+            nrows, ncols, nnz, sparsity);
+    }
 
-/* SpMV*/
-  //ierr = MatMult(K, forces_, displacements_);CHKERRQ(ierr);
-  MatView(K, PETSC_VIEWER_STDOUT_WORLD);
+    PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
+    master_stiffness_equation_.SetStiffnessMatrix(K);
 
-  PetscInt _m;
-  PetscInt _n;
-  MatGetSize(K, &_m, &_n);
-  printf("K (sparse) sizes: %d %d\n", _m, _n);
-  //MatView(K, PETSC_VIEWER_DRAW_WORLD);
-  //VecView(forces_, PETSC_VIEWER_STDOUT_WORLD);
-  //VecView(displacements_, PETSC_VIEWER_STDOUT_WORLD);
-  //VecView(displacements_, PETSC_VIEWER_DRAW_WORLD);
-  //ierr = VecDestroy(&forces_);CHKERRQ(ierr);
-  //ierr = VecDestroy(&displacements_);CHKERRQ(ierr);
-  //ierr = MatDestroy(&K);CHKERRQ(ierr);
-  //Vec forces;
-  //VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, n, &forces);
-  //VecSetType(forces, VECMPI);
-  //VecSetFromOptions(forces);
-  //VecSet(forces, 0.0F);
-  //VecSetValue(forces, 0, -90.0F, INSERT_VALUES);
-  //VecSetValue(forces, 2, 80.0F, INSERT_VALUES);
-  //VecAssemblyBegin(forces);
-  //VecAssemblyEnd(forces);
-  master_stiffness_equation_.SetForces(forces_);
+    Vec f;
+    VecCreate(PETSC_COMM_WORLD, &f);
+    VecSetSizes(f, kGlobalProblemSize, PETSC_DECIDE);
+    VecSetFromOptions(f);
+    VecSet(f, 0.0F);
+    VecSetValue(f, 0, -20.0F, INSERT_VALUES);
+    master_stiffness_equation_.SetForces(f);
 
-  boost::container::vector<Term> master_terms;
-  master_terms.push_back(Term(5, -1.0F));
-  //for (int i{1}; i < number_of_rows; ++i) {
-  //  master_terms.push_back(Term(i, 1.0F));
-  //}
+    Vec g;
+    VecCreate(PETSC_COMM_WORLD, &g);
+    VecSetSizes(g, kGlobalProblemSize, PETSC_DECIDE);
+    VecSetFromOptions(g);
+    VecSet(g, 0.0F);
+    master_stiffness_equation_.SetGaps(g);
 
-  boost::container::vector constraints{Constraint(Term(0, 1.0F), master_terms)};
-  master_stiffness_equation_.SetConstraints(constraints);
+    unsigned int seed;
+    std::random_device rd;  // Non-deterministic generator
+    if (rank == 0) {
+        seed = rd();
+    }
+    MPI_Bcast(&seed, 1, MPIU_INT,0, MPI_COMM_WORLD);
 
-  master_stiffness_equation_.ApplyConstraints();
-  //master_stiffness_equation_.Solve();
-  PetscFinalize();
-  return 0;
+    std::mt19937 gen(seed); // Mersenne Twister generator seeded with rd()
 
-  //TestNonHomogeniousMfcs();
+    const auto constraints = generate_constraints(kGlobalProblemSize, nC, gen);
 
-  MatDestroy(&Kdense);
-  MatDestroy(&K);
-  PetscFinalize();
+    if (print_constraints) {
+        for (const auto& constraint : constraints) {
+            PetscPrintf(PETSC_COMM_SELF, "rank %d -> s: %d, m: [", rank, constraint.GetSlaveTermIndex());
+            for (auto m: constraint.GetMasterTerms()){
+                PetscPrintf(PETSC_COMM_SELF, "%d ", m.GetIndex());
+            }
+            PetscPrintf(PETSC_COMM_SELF, "]\n");
+        }
+    }
+
+    master_stiffness_equation_.SetConstraints(constraints);
+
+    double constraint_start = MPI_Wtime(); // Start constraint timing
+    master_stiffness_equation_.ApplyConstraints();
+    double constraint_end = MPI_Wtime();   // End constraint timing
+
+    double total_end = MPI_Wtime();
+    double total_elapsed = total_end - total_start;
+    double constraint_elapsed = constraint_end - constraint_start;
+
+    double total_max, constraint_max;
+    MPI_Reduce(&total_elapsed, &total_max, 1, MPI_DOUBLE, MPI_MAX, 0, PETSC_COMM_WORLD);
+    MPI_Reduce(&constraint_elapsed, &constraint_max, 1, MPI_DOUBLE, MPI_MAX, 0, PETSC_COMM_WORLD);
+
+    if (rank == 0) {
+        // Final time report
+        PetscPrintf(PETSC_COMM_WORLD,
+            "\nTiming Summary:\n"
+            " - Total Time Elapsed: %.6f seconds\n"
+            " - Constraint Application Time: %.6f seconds\n",
+            total_max, constraint_max);
+
+        // Log results
+        std::ofstream log("timing_log.csv", std::ios::app);
+        if (log.tellp() == 0) {
+            log << "matrix,rows,cols,nnz,sparsity,constraints,total_time_s,constraint_time_s\n";
+        }
+
+        log << mtx_file << ","
+            << nrows << "," << ncols << "," << nnz << ","
+            << sparsity << "," << nC << ","
+            << total_max << "," << constraint_max << "\n";
+        log.close();
+    }
+
+    MatDestroy(&K);
+    VecDestroy(&f);
+    VecDestroy(&g);
+    PetscFinalize();
+    return 0;
 }
 
-bool TestNonHomogeniousMfcs() {
-  PetscMPIInt rank;
-  PetscFunctionBeginUser;
-  PetscCallMPI(MPI_Comm_rank(PETSC_COMM_WORLD, &rank));
-  PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
-  static constexpr int kGlobalProblemSize{6};
-  static constexpr int kNumberOfNonZeroEntries{16};
-  Mat K;
-  boost::array<PetscInt, kGlobalProblemSize + 1> beginning_of_each_row{0, 2, 5, 8,
-                                                                       11, 14, 16};
-  boost::array<PetscInt, kNumberOfNonZeroEntries>
-      column_numbers{0, 1, 0, 1, 2, 1, 2, 3,
-                     2, 3, 4, 3, 4, 5, 4, 5}; // j vec size nnz
-  boost::array<PetscScalar, kNumberOfNonZeroEntries>
-      non_zero_values{100, -100, -100, 200, -100, -100,
-                      200, -100, -100, 200, -100, -100,
-                      200, -100, -100, 200}; // v vec size nnz
-  MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD, kGlobalProblemSize, kGlobalProblemSize, PETSC_DETERMINE,
-                            PETSC_DETERMINE, beginning_of_each_row.data(),
-                            column_numbers.data(), non_zero_values.data(), &K);
-  master_stiffness_equation_.SetStiffnessMatrix(K);
+std::tuple<int, Mat> read_matrix_from_mtx(const char* mtx_file) {
+    PetscMPIInt rank;
+    Mat K;
+    MPI_Comm_rank(PETSC_COMM_WORLD, &rank);
 
-  Vec f;
-  VecCreate(PETSC_COMM_WORLD, &f);
-  VecSetSizes(f, kGlobalProblemSize, PETSC_DECIDE);
-  VecSetFromOptions(f);
-  VecSet(f, 0.0F);
-  VecSetValue(f, 0, -20.0F, INSERT_VALUES);
+    // 1. Parse .mtx file
+    std::vector<std::tuple<int, int, PetscScalar>> entries;
+    PetscInt rows, cols, nnz;
 
-  Vec g;
-  VecCreate(PETSC_COMM_WORLD, &g);
-  VecSetSizes(g, kGlobalProblemSize, PETSC_DECIDE);
-  VecSetFromOptions(g);
-  VecSet(g, 0.0F);
-  master_stiffness_equation_.SetGaps(g);
-  boost::container::vector constraints{
-      Constraint(Term(5, 0.149F), boost::container::vector{Term(4, -0.834F)},
-                 0.32F),
-      Constraint(Term(1, 0.954F),
-                 boost::container::vector{Term(2, 0.224F), Term(3, -0.592F)},
-                 0.14F),
-  };
+    if (rank == 0) {
+        std::ifstream fin(mtx_file);
+        if (!fin.is_open()) {
+            PetscPrintf(PETSC_COMM_WORLD, "Cannot open input file %s\n", mtx_file);
+            PetscFinalize();
+            return {};
+        }
 
-  master_stiffness_equation_.SetConstraints(
-      constraints);
-  master_stiffness_equation_.ApplyConstraints();
-  master_stiffness_equation_.Solve();
-  auto a = master_stiffness_equation_.GetTransformationMatrix();
-  MatView(a, PETSC_VIEWER_STDOUT_WORLD);
-  auto b = master_stiffness_equation_.GetModifiedForces();
-  VecView(b, PETSC_VIEWER_STDOUT_WORLD);
-  auto c = master_stiffness_equation_.GetModifiedStiffnessMatrix();
-  MatView(c, PETSC_VIEWER_STDOUT_WORLD);
-  auto d = master_stiffness_equation_.GetModifiedDisplacements();
-  VecView(d, PETSC_VIEWER_STDOUT_WORLD);
-  auto e = master_stiffness_equation_.GetDisplacements();
-  VecView(e, PETSC_VIEWER_STDOUT_WORLD);
-  return false;
+        std::string line;
+        while (std::getline(fin, line)) {
+            if (line[0] != '%') break;
+        }
+
+        std::istringstream header(line);
+        header >> rows >> cols >> nnz;
+
+        int r, c;
+        PetscScalar v;
+        while (fin >> r >> c >> v) {
+            entries.emplace_back(r - 1, c - 1, v); // 1-based -> 0-based
+        }
+    }
+
+    // 2. Broadcast matrix size
+    MPI_Bcast(&rows, 1, MPIU_INT, 0, PETSC_COMM_WORLD);
+    MPI_Bcast(&cols, 1, MPIU_INT, 0, PETSC_COMM_WORLD);
+    MPI_Bcast(&nnz, 1, MPIU_INT, 0, PETSC_COMM_WORLD);
+
+    // Step: Broadcast the entries
+    if (rank != 0) {
+        entries.resize(nnz);
+    }
+    MPI_Bcast(entries.data(), nnz * sizeof(std::tuple<int, int, PetscScalar>), MPI_BYTE, 0, PETSC_COMM_WORLD);
+
+    // 3. Create matrix
+    MatCreate(PETSC_COMM_WORLD, &K);
+    MatSetSizes(K, PETSC_DECIDE, PETSC_DECIDE, rows, cols);
+    MatSetType(K, MATMPIAIJ);
+    MatSetFromOptions(K);
+    MatSetUp(K);
+
+    // 4. Insert values
+    PetscInt rstart, rend;
+    MatGetOwnershipRange(K, &rstart, &rend);
+
+    for (const auto& [row, col, val] : entries) {
+        if (row >= rstart && row < rend) {
+            MatSetValue(K, row, col, val, INSERT_VALUES);
+        }
+    }
+
+    // 5. Assemble matrix
+    MatAssemblyBegin(K, MAT_FINAL_ASSEMBLY);
+    MatAssemblyEnd(K, MAT_FINAL_ASSEMBLY);
+
+    return {nnz, K};
+}
+
+boost::container::vector<Constraint> generate_constraints(const PetscInt size, const PetscInt nC, std::mt19937 gen,
+                            const PetscInt nm_max, const float max_coeff) {
+    boost::container::vector<Constraint> constraints;
+
+    // Define the distribution range
+    std::uniform_int_distribution<int> distr_node(0, size-1);
+    std::uniform_int_distribution<int> distr_m(1, nm_max);
+    std::uniform_real_distribution<float> distr_coeff(0.01, max_coeff);
+
+    std::unordered_set<int> usedNodes;
+    int s_idx, m_idx;
+    float s_coeff, m_coeff, gap;
+
+    for (size_t i{0}; i < nC; ++i) {
+        // Create random slave node
+        do {
+            s_idx = distr_node(gen);
+        } while (usedNodes.contains(s_idx));
+
+        usedNodes.insert(s_idx);
+
+        s_coeff = distr_coeff(gen);
+        auto s = Term{s_idx, s_coeff, 1.0};
+
+        // Create random master nodes
+        boost::container::vector<Term> m(distr_m(gen));
+        boost::container::vector<int> m_used(m.size());
+
+        for(size_t j{0}; j < m.size(); ++j) {
+            do {
+                m_idx = distr_node(gen);
+            } while (usedNodes.contains(m_idx) || std::find(m_used.begin(), m_used.end(), m_idx) != m_used.end());
+
+            m_coeff = distr_coeff(gen);
+            m[j] = Term{m_idx, m_coeff, 1.0};
+            m_used[j] = m_idx;
+        }
+
+        gap = distr_coeff(gen);
+
+        constraints.push_back(Constraint{s, m, gap});
+    }
+
+    return constraints;
+}
+
+bool homogenous_manual_constraints_trial(int argc, char **args) {
+    PetscMPIInt rank;
+    PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
+    static constexpr int kGlobalProblemSize{6};
+    static constexpr int kNumberOfNonZeroEntries{16};
+    Mat K;
+
+    PetscErrorCode ierr = PetscInitialize(&argc, &args, nullptr, "--help");
+    PetscFunctionBeginUser;
+    PetscCallMPI(MPI_Comm_rank(PETSC_COMM_WORLD, &rank));
+
+    if (rank == 0)
+        std::cout << "Initiating trial" << std::endl;
+
+    if (ierr) {
+        std::cout << "PetscInitialize failed with error code " << ierr << std::endl;
+        return ierr;
+    }
+
+    boost::array<PetscInt, kGlobalProblemSize + 1> beginning_of_each_row{
+        0, 2, 5, 8,
+        11, 14, 16
+    };
+    boost::array<PetscInt, kNumberOfNonZeroEntries>
+            column_numbers{
+                0, 1, 0, 1, 2, 1, 2, 3,
+                2, 3, 4, 3, 4, 5, 4, 5
+            };
+    boost::array<PetscScalar, kNumberOfNonZeroEntries>
+            non_zero_values{
+                100, -100, -100, 200, -100, -100,
+                200, -100, -100, 200, -100, -100,
+                200, -100, -100, 200
+            };
+
+
+    MatCreate(PETSC_COMM_WORLD, &K);
+    MatSetSizes(K, PETSC_DECIDE, PETSC_DECIDE, kGlobalProblemSize, kGlobalProblemSize);
+    MatSetFromOptions(K);
+    MatSetUp(K);
+
+    for (int i = 0; i < kGlobalProblemSize; ++i) {
+        int row_start = beginning_of_each_row[i];
+        int row_end = beginning_of_each_row[i + 1];
+        MatSetValues(K, 1, &i, row_end - row_start,
+                     &column_numbers[row_start],
+                     &non_zero_values[row_start], INSERT_VALUES);
+    }
+
+    MatAssemblyBegin(K, MAT_FINAL_ASSEMBLY);
+    MatAssemblyEnd(K, MAT_FINAL_ASSEMBLY);
+
+    master_stiffness_equation_.SetStiffnessMatrix(K);
+
+    Vec f;
+    VecCreate(PETSC_COMM_WORLD, &f);
+    VecSetSizes(f, kGlobalProblemSize, PETSC_DECIDE);
+    VecSetFromOptions(f);
+    VecSet(f, 0.0F);
+    VecSetValue(f, 0, -20.0F, INSERT_VALUES);
+    master_stiffness_equation_.SetForces(f);
+
+    Vec g;
+    VecCreate(PETSC_COMM_WORLD, &g);
+    VecSetSizes(g, kGlobalProblemSize, PETSC_DECIDE);
+    VecSetFromOptions(g);
+    VecSet(g, 0.0F);
+    master_stiffness_equation_.SetGaps(g);
+    boost::container::vector constraints{
+        Constraint(Term(5, 0.149F), boost::container::vector{Term(4, -0.834F)}, 0.32F),
+        Constraint(Term(1, 0.954F), boost::container::vector{Term(2, 0.224F), Term(3, -0.592F)}, 0.14F),
+    };
+
+    master_stiffness_equation_.SetConstraints(constraints);
+    master_stiffness_equation_.ApplyConstraints();
+
+    if (rank == 0)
+        std::cout << "Trial complete" << std::endl;
+
+    return true;
 }

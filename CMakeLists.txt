@@ -1,12 +1,12 @@
-cmake_minimum_required(VERSION 3.25)
+cmake_minimum_required(VERSION 3.22)
 project(multifreedom_constraints)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/modules)
 
-set(ENV{PETSC_DIR} /home/nitelm/workspace/petsc)
-set(ENV{PETSC_ARCH} arch-linux-c-debug)
-set(PETSC_INCLUDE /home/nitelm/workspace/petsc/include)
+set(PETSC_DIR /home/ctopal/petsc)
+set(PETSC_ARCH arch-linux-c-debug)
+set(PETSC_INCLUDE /home/ctopal/petsc/include)
 
 find_package(PETSc REQUIRED)
 find_package(MPI REQUIRED)
@@ -36,7 +36,7 @@ add_executable(
         test_petsc_master_stiffness_equation_adaptee.cpp)
 target_link_libraries(
         run_tests
-        ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} multifreedom_constraints MPI::MPI_CXX
+        ${GTEST_LIBRARIES} ${GTEST_MAIN_LIBRARIES} multifreedom_constraints MPI
 )
 target_include_directories(run_tests PRIVATE ${GTEST_INCLUDE_DIRS} /usr/include/eigen3)
 target_include_directories(run_tests PRIVATE ${PETSC_INCLUDE} ${PETSC_DIR}/${PETSC_ARCH}/include)
