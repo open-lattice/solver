@@ -72,19 +72,22 @@ int main(int argc, char **argv) {
     master_stiffness_equation_.SetStiffnessMatrix(K);
 
     Vec f;
-    VecCreate(PETSC_COMM_WORLD, &f);
-    VecSetSizes(f, kGlobalProblemSize, PETSC_DECIDE);
+    VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kGlobalProblemSize, &f);
     VecSetFromOptions(f);
     VecSet(f, 0.0F);
     VecSetValue(f, 0, -20.0F, INSERT_VALUES);
-    master_stiffness_equation_.SetForces(f);
+    VecAssemblyBegin(f);
+    VecAssemblyEnd(f);
 
     Vec g;
-    VecCreate(PETSC_COMM_WORLD, &g);
-    VecSetSizes(g, kGlobalProblemSize, PETSC_DECIDE);
+    VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kGlobalProblemSize, &g);
     VecSetFromOptions(g);
     VecSet(g, 0.0F);
+    VecAssemblyBegin(g);
+    VecAssemblyEnd(g);
+
     master_stiffness_equation_.SetGaps(g);
+    master_stiffness_equation_.SetForces(f);
 
     unsigned int seed;
     std::random_device rd;  // Non-deterministic generator
@@ -146,6 +149,9 @@ int main(int argc, char **argv) {
     VecDestroy(&f);
     VecDestroy(&g);
     PetscFinalize();
+
+    //homogenous_manual_constraints_trial(argc, argv);
+
     return 0;
 }
 
@@ -263,15 +269,15 @@ boost::container::vector<Constraint> generate_constraints(const PetscInt size, c
 }
 
 bool homogenous_manual_constraints_trial(int argc, char **args) {
-    PetscMPIInt rank;
-    PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
-    static constexpr int kGlobalProblemSize{6};
-    static constexpr int kNumberOfNonZeroEntries{16};
-    Mat K;
-
     PetscErrorCode ierr = PetscInitialize(&argc, &args, nullptr, "--help");
+    PetscMPIInt rank, size;
+
+    static constexpr int N{6};
+    static constexpr int NNZ{16};
+
     PetscFunctionBeginUser;
     PetscCallMPI(MPI_Comm_rank(PETSC_COMM_WORLD, &rank));
+    MPI_Comm_size(PETSC_COMM_WORLD, &size);
 
     if (rank == 0)
         std::cout << "Initiating trial" << std::endl;
@@ -281,65 +287,93 @@ bool homogenous_manual_constraints_trial(int argc, char **args) {
         return ierr;
     }
 
-    boost::array<PetscInt, kGlobalProblemSize + 1> beginning_of_each_row{
+    boost::array<PetscInt, N + 1> ia_global{
         0, 2, 5, 8,
         11, 14, 16
     };
-    boost::array<PetscInt, kNumberOfNonZeroEntries>
-            column_numbers{
+    boost::array<PetscInt, NNZ>
+            ja_global{
                 0, 1, 0, 1, 2, 1, 2, 3,
                 2, 3, 4, 3, 4, 5, 4, 5
             };
-    boost::array<PetscScalar, kNumberOfNonZeroEntries>
-            non_zero_values{
+    boost::array<PetscScalar, NNZ>
+            a_global{
                 100, -100, -100, 200, -100, -100,
                 200, -100, -100, 200, -100, -100,
                 200, -100, -100, 200
             };
 
-
-    MatCreate(PETSC_COMM_WORLD, &K);
-    MatSetSizes(K, PETSC_DECIDE, PETSC_DECIDE, kGlobalProblemSize, kGlobalProblemSize);
-    MatSetFromOptions(K);
-    MatSetUp(K);
-
-    for (int i = 0; i < kGlobalProblemSize; ++i) {
-        int row_start = beginning_of_each_row[i];
-        int row_end = beginning_of_each_row[i + 1];
-        MatSetValues(K, 1, &i, row_end - row_start,
-                     &column_numbers[row_start],
-                     &non_zero_values[row_start], INSERT_VALUES);
+    // Partition rows
+    PetscInt rstart = 0, rend = 0;
+    PetscInt local_rows = N / size + (rank < N % size ? 1 : 0);
+    std::vector<PetscInt> counts(size), offset(size + 1, 0);
+    for (int i = 0; i < size; ++i) {
+        counts[i] = N / size + (i < N % size ? 1 : 0);
+        offset[i + 1] = offset[i] + counts[i];
     }
+    rstart = offset[rank];
+    rend = offset[rank + 1];
+
+    // Build local CSR
+    std::vector<PetscInt> ia_local(local_rows + 1, 0);
+    std::vector<PetscInt> ja_local;
+    std::vector<PetscScalar> a_local;
+
+    PetscInt row_nz = 0;
+    for (PetscInt i = rstart; i < rend; ++i) {
+        PetscInt row_start = ia_global[i];
+        PetscInt row_end = ia_global[i + 1];
+        ia_local[i - rstart + 1] = ia_local[i - rstart] + (row_end - row_start);
+        for (PetscInt k = row_start; k < row_end; ++k) {
+            ja_local.push_back(ja_global[k]);
+            a_local.push_back(a_global[k]);
+        }
+    }
+
+    Mat K;
+
+    MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD, local_rows, PETSC_DECIDE, PETSC_DETERMINE,
+                            N, ia_local.data(),
+                            ja_local.data(), a_local.data(), &K);
 
     MatAssemblyBegin(K, MAT_FINAL_ASSEMBLY);
     MatAssemblyEnd(K, MAT_FINAL_ASSEMBLY);
 
+    PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
     master_stiffness_equation_.SetStiffnessMatrix(K);
 
     Vec f;
-    VecCreate(PETSC_COMM_WORLD, &f);
-    VecSetSizes(f, kGlobalProblemSize, PETSC_DECIDE);
+    VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, N, &f);
     VecSetFromOptions(f);
     VecSet(f, 0.0F);
     VecSetValue(f, 0, -20.0F, INSERT_VALUES);
-    master_stiffness_equation_.SetForces(f);
+    VecAssemblyBegin(f);
+    VecAssemblyEnd(f);
 
     Vec g;
-    VecCreate(PETSC_COMM_WORLD, &g);
-    VecSetSizes(g, kGlobalProblemSize, PETSC_DECIDE);
+    VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, N, &g);
     VecSetFromOptions(g);
     VecSet(g, 0.0F);
+    VecAssemblyBegin(g);
+    VecAssemblyEnd(g);
+
     master_stiffness_equation_.SetGaps(g);
+    master_stiffness_equation_.SetForces(f);
+
     boost::container::vector constraints{
-        Constraint(Term(5, 0.149F), boost::container::vector{Term(4, -0.834F)}, 0.32F),
-        Constraint(Term(1, 0.954F), boost::container::vector{Term(2, 0.224F), Term(3, -0.592F)}, 0.14F),
+        Constraint(Term(5, 0.149F), boost::container::vector{Term(4, -0.834F)}, 0.),
+        Constraint(Term(1, 0.954F), boost::container::vector{Term(2, 0.224F), Term(3, -0.592F)}, 0.),
     };
 
     master_stiffness_equation_.SetConstraints(constraints);
+
     master_stiffness_equation_.ApplyConstraints();
+    master_stiffness_equation_.Solve();
 
     if (rank == 0)
         std::cout << "Trial complete" << std::endl;
 
+    MatDestroy(&K);
+    PetscFinalize();
     return true;
 }
