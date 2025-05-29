@@ -1,4 +1,3 @@
-# solver
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -37,7 +36,7 @@ well as a higher-level wrapper for MPI operations.</li>
 
 <h2>Running the Program</h2>
 <p>To run the parallel program, use the <code>mpirun</code> command with the desired number of processes:</p>
-<pre><code>mpirun -np &lt;number_of_processes&gt; ./test_parallel &lt;matrix_folder&gt; &lt;number_of_constraints&gt;</code></pre>
+<pre><code>mpirun -np &lt;number_of_processes&gt; ./cmake-build-debug/main &lt;matrix_folder&gt/&lt;matrix_file&gt &lt;number_of_constraints&gt;</code></pre>
 <p>Replace <code>&lt;number_of_processes&gt;</code> with the number of MPI processes you want to launch.</p>
 
 <h3>Example</h3>
