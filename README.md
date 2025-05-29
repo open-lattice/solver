@@ -7,7 +7,7 @@
 <h1>Parallel Solver & Multi-freedom Constraint Application with PETSc</h1>
 
 <p>This project demonstrates a parallel implementation of constraint application using MPI under PETSc library for inter-process communication.  
-  At this stage, application supports matrices given in Matrix Market <code>(.mtx)</code> or binary file format.</p>
+  At this stage, application supports matrices given in Matrix Market <code>(.mtx)</code> or binary <code>(.bin)</code> file format.</p>
 
 <h2>Requirements</h2>
 <ul>
@@ -40,7 +40,7 @@ well as a higher-level wrapper for MPI operations.</li>
 <p>Replace <code>&lt;number_of_processes&gt;</code> with the number of MPI processes you want to launch.</p>
 
 <h3>Example</h3>
-<pre><code>mpirun -np 4 ./cmake-build-debug/main bcsstk21.mtx 100</code></pre>
+<pre><code>mpirun -np 4 ./cmake-build-debug/main binaries/bcsstk21.bin 100</code></pre>
 <p>This example runs the parallel program with 4 MPI processes using bcsstk21.mtx matrix file and applies 100 randomized constraints.</p>
 
 
