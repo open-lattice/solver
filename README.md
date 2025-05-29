@@ -5,7 +5,7 @@
 </head>
 <body>
 
-<h1>Parallel Multi-freedom Constraint Application with PETSc</h1>
+<h1>Parallel Solver & Multi-freedom Constraint Application with PETSc</h1>
 
 <p>This project demonstrates a parallel implementation of constraint application using MPI under PETSc library for inter-process communication.  
   At this stage, application supports matrices given in Matrix Market <code>(.mtx)</code> or binary file format.</p>
