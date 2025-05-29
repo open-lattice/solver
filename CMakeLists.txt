@@ -21,6 +21,9 @@ target_include_directories(multifreedom_constraints PRIVATE ${PETSC_DIR}/${PETSC
 target_link_libraries(multifreedom_constraints PRIVATE ${PETSC_LIBRARIES})
 
 if (${PETSC_FOUND})
+    add_executable(mtx_to_petsc_bin mtx_to_petsc_bin.cpp)
+    target_include_directories(mtx_to_petsc_bin PRIVATE ${PETSC_INCLUDE} ${PETSC_DIR}/${PETSC_ARCH}/include)
+    target_link_libraries(mtx_to_petsc_bin PRIVATE ${PETSC_LIBRARIES} multifreedom_constraints)
     add_executable(main main.cpp)
     target_include_directories(main PRIVATE ${PETSC_INCLUDE} ${PETSC_DIR}/${PETSC_ARCH}/include)
     target_link_libraries(main PRIVATE ${PETSC_LIBRARIES} multifreedom_constraints)

@@ -17,7 +17,7 @@ class Term {
  private:
   int index_;
   float coefficient_;
-  [[maybe_unused]] float degree_;
+  float degree_;
 };
 
 #endif // MULTI_FREEDOM_CONSTRAINTS_TERM_HPP_
