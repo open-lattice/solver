@@ -24,6 +24,7 @@ int main(int argc, char **argv) {
     const std::string output_folder = argv[2];
     const std::string base_filename = std::filesystem::path(input_path).stem().string();
     const std::string output_path = output_folder + "/" + base_filename + ".bin";
+    const std::string info_path = output_folder + "/" + base_filename + ".info";
 
     PetscInt m = 0, n = 0, nnz = 0;
     std::vector<std::tuple<PetscInt, PetscInt, PetscScalar>> entries;
@@ -89,6 +90,12 @@ int main(int argc, char **argv) {
     PetscViewerBinaryOpen(PETSC_COMM_WORLD, output_path.c_str(), FILE_MODE_WRITE, &viewer);
     MatView(K, viewer);
     PetscViewerDestroy(&viewer);
+
+    std::ofstream info(info_path.c_str(), std::ios::app);
+    if (info.is_open() && rank == 0) {
+        info << m << " " << n << " " << nnz;
+        info.close();
+    }
 
     if (rank == 0) {
         PetscPrintf(PETSC_COMM_WORLD, "Saved PETSc binary matrix to: %s\n", output_path.c_str());
