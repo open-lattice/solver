@@ -4,18 +4,36 @@ EXEC=./cmake-build-debug/main
 MTX_DIR="./matrices"
 OUTCSV="timing_log.csv"
 
-CONSTRAINT_COUNTS=(100 500 1000 2000 5000 10000 50000 100000 250000 500000 1000000 5000000)
+CONSTRAINT_COUNTS=(100 500 1000 2000 5000 10000 50000 100000 250000 500000 1000000)
 
 PROCS=(1 2 3 4 5 6)
 
 declare -A BASELINES
 
 # header
-echo "matrix,rows,cols,nnz,sparsity,constraints,total_time_s,constraint_time_s,procs,speedup,efficiency" > "$OUTCSV"
+echo "matrix,rows,cols,nnz,sparsity,constraints,total_time_s,constraint_time_s,procs,speedup,efficiency,format" > "$OUTCSV"
 
 for mtx in "$MTX_DIR"/*.mtx; do
-    matrix=$(basename "$mtx")
-    matrix_rows=$(grep -v '^%' "$mtx" | head -1 | awk '{print $1}')
+
+    filename=$(basename "$file")
+    extension="${filename##*.}"
+    name="${filename%.*}"
+
+    # Detect .mtx or .bin
+    if [[ "$extension" == "mtx" ]]; then
+        matrix_rows=$(grep -v '^%' "$file" | head -1 | awk '{print $1}')
+    elif [[ "$extension" == "bin" ]]; then
+        info_file="${filename}.info"
+        if [[ -f "$info_file" ]]; then
+            matrix_rows=$(awk 'NR==1 {print $1}' "$info_file")
+        else
+            echo "Missing .info file for $filename. Skipping."
+            continue
+        fi
+    else
+        echo "Unsupported file type: $extension. Skipping."
+        continue
+    fi
 
     for nC in "${CONSTRAINT_COUNTS[@]}"; do
         if [ "$nC" -le "$matrix_rows" ]; then
@@ -39,7 +57,7 @@ for mtx in "$MTX_DIR"/*.mtx; do
 
                 sed -i '$ d' "$OUTCSV"
 
-                echo "$line,$np,$speedup,$efficiency" >> "$OUTCSV"
+                echo "$line,$np,$speedup,$efficiency,$extension" >> "$OUTCSV"
             done
         else
             echo "Skipping: $matrix with $nC constraints (exceeds $matrix_rows rows)"
