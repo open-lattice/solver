@@ -43,12 +43,12 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
         }
     }
 
-    printf("\n");
-    printf("Content of %d: \n", rank);
-    for (int i{rstart}; i < rend; ++i) {
-        printf("%d ", i);
-    }
-    printf("\n");
+    // printf("\n");
+    // printf("Content of %d: \n", rank);
+    // for (int i{rstart}; i < rend; ++i) {
+    //     printf("%d ", i);
+    // }
+    // printf("\n");
 
     MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD,
                               rend - rstart,
@@ -158,29 +158,29 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
                PETSC_DEFAULT,
                &(PetscMasterStiffnessEquationAdaptee::modified_stiffness_matrix_));
 
-    if (rank == 0) std::cout << "T: " << std::endl;
-    MatView(transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
-    if (rank == 0) std::cout << "\n" << std::endl;
-
-    if (rank == 0) std::cout << "K: " << std::endl;
-    MatView(stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
-    if (rank == 0) std::cout << "\n" << std::endl;
-
-    if (rank == 0) std::cout << "_K: " << std::endl;
-    MatView(modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
-    if (rank == 0) std::cout << "\n" << std::endl;
-
-    if (rank == 0) std::cout << "g: " << std::endl;
-    VecView(gaps_, PETSC_VIEWER_STDOUT_WORLD);
-    if (rank == 0) std::cout << "\n" << std::endl;
-
-    if (rank == 0) std::cout << "f: " << std::endl;
-    VecView(PetscMasterStiffnessEquationAdaptee::forces_, PETSC_VIEWER_STDOUT_WORLD);
-    if (rank == 0) std::cout << "\n" << std::endl;
-
-    if (rank == 0) std::cout << "_f: " << std::endl;
-    VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
-    if (rank == 0) std::cout << "\n" << std::endl;
+    // if (rank == 0) std::cout << "T: " << std::endl;
+    // MatView(transformation_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+    // if (rank == 0) std::cout << "\n" << std::endl;
+    //
+    // if (rank == 0) std::cout << "K: " << std::endl;
+    // MatView(stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+    // if (rank == 0) std::cout << "\n" << std::endl;
+    //
+    // if (rank == 0) std::cout << "_K: " << std::endl;
+    // MatView(modified_stiffness_matrix_, PETSC_VIEWER_STDOUT_WORLD);
+    // if (rank == 0) std::cout << "\n" << std::endl;
+    //
+    // if (rank == 0) std::cout << "g: " << std::endl;
+    // VecView(gaps_, PETSC_VIEWER_STDOUT_WORLD);
+    // if (rank == 0) std::cout << "\n" << std::endl;
+    //
+    // if (rank == 0) std::cout << "f: " << std::endl;
+    // VecView(PetscMasterStiffnessEquationAdaptee::forces_, PETSC_VIEWER_STDOUT_WORLD);
+    // if (rank == 0) std::cout << "\n" << std::endl;
+    //
+    // if (rank == 0) std::cout << "_f: " << std::endl;
+    // VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
+    // if (rank == 0) std::cout << "\n" << std::endl;
 }
 
 
@@ -208,9 +208,9 @@ void PetscMasterStiffnessEquationAdaptee::Solve() {
              PetscMasterStiffnessEquationAdaptee::modified_displacements_);
     KSPDestroy(&krylov_method);
 
-    if (rank==0) std::cout << "_u: " << std::endl;
-    VecView(PetscMasterStiffnessEquationAdaptee::modified_displacements_, PETSC_VIEWER_STDOUT_WORLD);
-    if (rank==0) std::cout << "\n" << std::endl;
+    // if (rank==0) std::cout << "_u: " << std::endl;
+    // VecView(PetscMasterStiffnessEquationAdaptee::modified_displacements_, PETSC_VIEWER_STDOUT_WORLD);
+    // if (rank==0) std::cout << "\n" << std::endl;
 
     PetscMasterStiffnessEquationAdaptee::InitializeVector(&(PetscMasterStiffnessEquationAdaptee::displacements_),
                                                           MasterStiffnessEquation::ReadActiveRowSize());
@@ -221,9 +221,9 @@ void PetscMasterStiffnessEquationAdaptee::Solve() {
                PetscMasterStiffnessEquationAdaptee::gaps_,
                PetscMasterStiffnessEquationAdaptee::displacements_);
 
-    if (rank==0) std::cout << "u: " << std::endl;
-    VecView(PetscMasterStiffnessEquationAdaptee::displacements_, PETSC_VIEWER_STDOUT_WORLD);
-    if (rank==0) std::cout << "\n" << std::endl;
+    // if (rank==0) std::cout << "u: " << std::endl;
+    // VecView(PetscMasterStiffnessEquationAdaptee::displacements_, PETSC_VIEWER_STDOUT_WORLD);
+    // if (rank==0) std::cout << "\n" << std::endl;
 }
 
 void PetscMasterStiffnessEquationAdaptee::SetStiffnessMatrix(const Mat &stiffness_matrix) {
