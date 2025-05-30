@@ -13,7 +13,9 @@
 #include <string>
 
 #include <ctime>
+#include <filesystem>
 #include <random>
+#include <sys/stat.h>
 
 #include "constraint.h"
 #include "petsc_master_stiffness_equation_adaptee.h"
@@ -28,9 +30,7 @@ bool homogenous_manual_constraints_trial(int argc, char **args);
 
 int main(int argc, char **argv) {
     PetscInitialize(&argc, &argv, nullptr, nullptr);
-    PetscErrorCode ierr;
     PetscInt nrows, ncols;
-    PetscCount nnz;
     PetscViewer viewer;
     bool print_constraints = false;
     bool print_mat = false;
@@ -41,7 +41,7 @@ int main(int argc, char **argv) {
 
     if (argc != 3) {
         if (rank == 0) {
-            PetscPrintf(PETSC_COMM_WORLD, "Usage: %s input.mtx number_of_constraints\n", argv[0]);
+            PetscPrintf(PETSC_COMM_WORLD, "Usage: %s matrix_file number_of_constraints\n", argv[0]);
         }
         PetscFinalize();
         return -1;
@@ -49,39 +49,44 @@ int main(int argc, char **argv) {
 
     double total_start = MPI_Wtime();
 
-    const char *mat_file = argv[1];
+    const char* mtx_file = argv[1];
     const PetscInt nC = atoi(argv[2]);
+
+    std::string extension = std::filesystem::path(mtx_file).extension().string();
+
     Mat K;
+    PetscCount nnz;
 
-    // Open binary viewer on the file
-    ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, mat_file, FILE_MODE_READ, &viewer); CHKERRQ(ierr);
-
-    // Load matrix from the viewer into K
-    ierr = MatCreate(PETSC_COMM_WORLD, &K); CHKERRQ(ierr);
-    ierr = MatSetType(K, MATMPIAIJ); CHKERRQ(ierr);
-    ierr = MatSetFromOptions(K); CHKERRQ(ierr);
-    ierr = MatLoad(K, viewer); CHKERRQ(ierr);
-
-    // Close the viewer
-    ierr = PetscViewerDestroy(&viewer); CHKERRQ(ierr);
-
-   // auto [nnz, K] = read_matrix_from_mtx(mtx_file);
-
+    if (extension == ".bin") {
+        PetscViewerBinaryOpen(PETSC_COMM_WORLD, mtx_file, FILE_MODE_READ, &viewer);
+        MatCreate(PETSC_COMM_WORLD, &K);
+        MatSetType(K, MATMPIAIJ);
+        MatSetFromOptions(K);
+        MatLoad(K, viewer);
+        PetscViewerDestroy(&viewer);
+        MatMPIAIJGetNumberNonzeros(K, &nnz);
+        MPI_Allreduce(&nnz, &nnz, 1, MPI_INT, MPI_SUM, PETSC_COMM_WORLD);
+    }
+    else if (extension == ".mtx") {
+        std::tie(nnz, K) = read_matrix_from_mtx(mtx_file);
+    }
+    else {
+        if (rank == 0) {
+            PetscPrintf(PETSC_COMM_WORLD, "Unsupported file format: %s\n", extension.c_str());
+        }
+        PetscFinalize();
+        return -2;
+    }
 
     MatGetSize(K, &nrows, &ncols);
-    MatMPIAIJGetNumberNonzeros(K, &nnz);
-
-    MPI_Allreduce(&nnz, &nnz, 1, MPI_INT, MPI_SUM, PETSC_COMM_WORLD);
-
     const int kGlobalProblemSize = nrows;
 
     if (print_mat)
         MatView(K, PETSC_VIEWER_STDOUT_SELF);
 
-
     // --- Matrix Info Output ---
     if (rank == 0) {
-        sparsity = 1.0f - static_cast<float>(nnz) / static_cast<float>(nrows * ncols);
+        sparsity = 1.0 - static_cast<double>(nnz) / (static_cast<double>(nrows) * static_cast<double>(ncols));
         PetscPrintf(PETSC_COMM_WORLD,
                     "Matrix Info:\n"
                     " - Global Rows: %d\n"
@@ -96,7 +101,6 @@ int main(int argc, char **argv) {
 
     Vec f;
     VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kGlobalProblemSize, &f);
-    VecSetType(f, VECMPI);
     VecSetFromOptions(f);
     VecSet(f, 0.0F);
     VecSetValue(f, 0, -20.0F, INSERT_VALUES);
@@ -105,7 +109,6 @@ int main(int argc, char **argv) {
 
     Vec g;
     VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kGlobalProblemSize, &g);
-    VecSetType(g, VECMPI);
     VecSetFromOptions(g);
     VecSet(g, 0.0F);
     VecAssemblyBegin(g);
@@ -141,6 +144,8 @@ int main(int argc, char **argv) {
     master_stiffness_equation_.ApplyConstraints();
     double constraint_end = MPI_Wtime(); // End constraint timing
 
+    master_stiffness_equation_.Solve();
+
     double total_end = MPI_Wtime();
     double total_elapsed = total_end - total_start;
     double constraint_elapsed = constraint_end - constraint_start;
@@ -163,7 +168,7 @@ int main(int argc, char **argv) {
             log << "matrix,rows,cols,nnz,sparsity,constraints,total_time_s,constraint_time_s\n";
         }
 
-        log << mat_file << ","
+        log << mtx_file << ","
                 << nrows << "," << ncols << "," << nnz << ","
                 << sparsity << "," << nC << ","
                 << total_max << "," << constraint_max << "\n";
