@@ -11,9 +11,10 @@
 
 <h2>Requirements</h2>
 <ul>
-  <li><strong>CMake</strong>: Used for easily building the software.</li>
+    <li><strong>C++20</strong></li>
+  <li><strong>CMake 3.22</strong>: Used for easily building the software.</li>
     <li><strong>MPI Library</strong>: An implementation of the Message Passing Interface (MPI), such as OpenMPI or MPICH.</li>
-    <li><strong>PETSc 3.23.2 (latest)</strong>: A high-performance computing toolkit for robust sparse matrix representation, as
+    <li><strong>PETSc 3.23.1</strong>: A high-performance computing toolkit for robust sparse matrix representation, as
 well as a higher-level wrapper for MPI operations.</li>
 </ul>
 <h2>Important Files</h2>
@@ -32,7 +33,7 @@ well as a higher-level wrapper for MPI operations.</li>
 <p>To compile the test programs, using CMake is suggested. Development environments such as CLion are helpful:</p>
 
 <h3>Using CMake in the project directory:</h3>
-<pre><code>cmake --build <dir> [<options>] [-- <build-tool-options>...]</code></pre>
+<pre><code>cmake -DCMAKE_BUILD_TYPE=Debug -S /path/to/project -B /build/path</code></pre>
 
 <h2>Running the Program</h2>
 <p>To run the parallel program, use the <code>mpirun</code> command with the desired number of processes:</p>
