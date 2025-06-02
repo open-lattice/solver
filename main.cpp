@@ -80,6 +80,7 @@ int main(int argc, char **argv) {
 
     MatGetSize(K, &nrows, &ncols);
     const int kGlobalProblemSize = nrows;
+    nnz = nnz*2-nrows;
 
     if (print_mat)
         MatView(K, PETSC_VIEWER_STDOUT_SELF);
