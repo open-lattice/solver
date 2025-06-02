@@ -32,6 +32,7 @@ int main(int argc, char **argv) {
     PetscInitialize(&argc, &argv, nullptr, nullptr);
     PetscInt nrows, ncols;
     PetscViewer viewer;
+    PetscErrorCode ierr;
     bool print_constraints = false;
     bool print_mat = false;
     float sparsity;
@@ -99,6 +100,44 @@ int main(int argc, char **argv) {
 
     PetscMasterStiffnessEquationAdaptee master_stiffness_equation_;
     master_stiffness_equation_.SetStiffnessMatrix(K);
+
+    /* Investigate MatColoring for K */
+    PetscBool Asp_coloring = PETSC_FALSE;
+
+    ierr = PetscOptionsGetBool(NULL, NULL, "-Asp_color", &Asp_coloring, NULL); CHKERRQ(ierr);
+    if (Asp_coloring) {
+        MatColoring mc;
+        ISColoring iscoloring;
+        MatFDColoring matfdcoloring;
+
+        ierr = PetscPrintf(PETSC_COMM_WORLD, "Create coloring of K...\n"); CHKERRQ(ierr);
+        ierr = MatColoringCreate(K, &mc); CHKERRQ(ierr);
+        ierr = MatColoringSetType(mc, MATCOLORINGSL); CHKERRQ(ierr);
+        ierr = MatColoringSetFromOptions(mc); CHKERRQ(ierr);
+        ierr = MatColoringApply(mc, &iscoloring); CHKERRQ(ierr);
+        ierr = MatColoringDestroy(&mc); CHKERRQ(ierr);
+
+        ierr = MatFDColoringCreate(K, iscoloring, &matfdcoloring); CHKERRQ(ierr);
+        ierr = MatFDColoringSetFromOptions(matfdcoloring); CHKERRQ(ierr);
+        ierr = MatFDColoringSetUp(K, iscoloring, matfdcoloring); CHKERRQ(ierr);
+
+        // Optional: view the coloring in text format
+        // ierr = MatFDColoringView(matfdcoloring, PETSC_VIEWER_STDOUT_WORLD); CHKERRQ(ierr);
+
+        ierr = ISColoringDestroy(&iscoloring); CHKERRQ(ierr);
+        ierr = MatFDColoringDestroy(&matfdcoloring); CHKERRQ(ierr);
+    }
+
+    /* Write K in binary */
+    PetscBool Asp_write = PETSC_FALSE;
+    ierr = PetscOptionsGetBool(NULL, NULL, "-Asp_write", &Asp_write, NULL); CHKERRQ(ierr);
+    if (Asp_write) {
+        PetscViewer asp_viewer;
+        ierr = PetscPrintf(PETSC_COMM_WORLD, "Writing K into file K.dat...\n"); CHKERRQ(ierr);
+        ierr = PetscViewerBinaryOpen(PETSC_COMM_WORLD, "K.dat", FILE_MODE_WRITE, &asp_viewer); CHKERRQ(ierr);
+        ierr = MatView(K, asp_viewer); CHKERRQ(ierr);
+        ierr = PetscViewerDestroy(&asp_viewer); CHKERRQ(ierr);
+    }
 
     Vec f;
     VecCreateMPI(PETSC_COMM_WORLD, PETSC_DECIDE, kGlobalProblemSize, &f);
