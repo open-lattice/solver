@@ -90,7 +90,8 @@ int main(int argc, char **argv) {
     if (rank == 0) {
         sparsity = 1.0 - static_cast<double>(nnz) / (static_cast<double>(nrows) * static_cast<double>(ncols));
         PetscPrintf(PETSC_COMM_WORLD,
-                    "Matrix Info:\n"
+                    "-------------------------------"
+                    "\nMatrix Info:\n"
                     " - Global Rows: %d\n"
                     " - Global Cols: %d\n"
                     " - Non-zeros: %d\n"
@@ -199,7 +200,8 @@ int main(int argc, char **argv) {
         PetscPrintf(PETSC_COMM_WORLD,
                     "\nTiming Summary:\n"
                     " - Total Time Elapsed: %.6f seconds\n"
-                    " - Constraint Application Time: %.6f seconds\n",
+                    " - Constraint Application Time: %.6f seconds\n"
+                    "-------------------------------\n",
                     total_max, constraint_max);
 
         // Log results
