@@ -27,6 +27,8 @@ well as a higher-level wrapper for MPI operations.</li>
   <li><code>petsc_master_stiffness_equation_adaptee</code>: Implementation of the system solution functions with attributes inherited from master_stiffness_equation.</li>
   <li><code>run_all.sh</code>: Shell script for automated benchmarking.</li>
   <li><code>plot_timing.py</code>: Python code for post-processing/visualizing the benchmark results.</li>
+    <li><code>mtx_to_petsc_binary.cpp</code>: Code for converting .mtx files to binary (.bin) format</li>
+    <li><code>convert_all_mtx_to_bin.sh</code>: Shell script for automated matrix binary conversion.</li>
 </ul>
 
 <h2>Compilation</h2>
@@ -41,7 +43,7 @@ well as a higher-level wrapper for MPI operations.</li>
 <p>Replace <code>&lt;number_of_processes&gt;</code> with the number of MPI processes you want to launch.</p>
 
 <h3>Example</h3>
-<pre><code>mpirun -np 4 ./cmake-build-debug/main binaries/bcsstk21.bin 100</code></pre>
-<p>This example runs the parallel program with 4 MPI processes using bcsstk21.mtx matrix file and applies 100 randomized constraints.</p>
+<pre><code>mpirun -np 4 ./cmake-build-debug/main binaries/bcsstk21.bin 1000</code></pre>
+<p>This example runs the parallel program with 4 MPI processes using bcsstk21.mtx matrix file and applies 1000 randomized constraints.</p>
 
 
