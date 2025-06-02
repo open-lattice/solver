@@ -1,31 +1,31 @@
 #!/bin/bash
 
 EXEC=./cmake-build-debug/main
-MTX_DIR="./matrices"
+MTX_DIR="./binaries"
 OUTCSV="timing_log.csv"
 
 CONSTRAINT_COUNTS=(100 500 1000 2000 5000 10000 50000 100000 250000 500000 1000000)
-
 PROCS=(1 2 3 4 5 6)
 
 declare -A BASELINES
 
-# header
+# Header
 echo "matrix,rows,cols,nnz,sparsity,constraints,total_time_s,constraint_time_s,procs,speedup,efficiency,format" > "$OUTCSV"
 
-for mtx in "$MTX_DIR"/*.mtx; do
-
-    filename=$(basename "$file")
+for matrix_file in "$MTX_DIR"/*; do
+    filename=$(basename "$matrix_file")
     extension="${filename##*.}"
     name="${filename%.*}"
 
-    # Detect .mtx or .bin
+    # Detect matrix size
     if [[ "$extension" == "mtx" ]]; then
-        matrix_rows=$(grep -v '^%' "$file" | head -1 | awk '{print $1}')
+        matrix_rows=$(grep -v '^%' "$matrix_file" | head -1 | awk '{print $1}')
+        matrix_cols=$(grep -v '^%' "$matrix_file" | head -1 | awk '{print $2}')
+        matrix_nnz=$(grep -v '^%' "$matrix_file" | head -1 | awk '{print $3}')
     elif [[ "$extension" == "bin" ]]; then
-        info_file="${filename}.info"
+        info_file="${MTX_DIR}/${name}.info"
         if [[ -f "$info_file" ]]; then
-            matrix_rows=$(awk 'NR==1 {print $1}' "$info_file")
+            read matrix_rows matrix_cols matrix_nnz < "$info_file"
         else
             echo "Missing .info file for $filename. Skipping."
             continue
@@ -38,13 +38,13 @@ for mtx in "$MTX_DIR"/*.mtx; do
     for nC in "${CONSTRAINT_COUNTS[@]}"; do
         if [ "$nC" -le "$matrix_rows" ]; then
             for np in "${PROCS[@]}"; do
-                echo "Running: $matrix with $nC constraints on $np processes"
-                mpiexec -n "$np" "$EXEC" "$mtx" "$nC"
+                echo "Running: $filename with $nC constraints on $np processes"
+                mpiexec -n "$np" "$EXEC" "$matrix_file" "$nC"
 
                 line=$(tail -n 1 "$OUTCSV" | cut -d',' -f1-8)
                 constraint_time=$(echo "$line" | awk -F',' '{print $(NF)}')
 
-                key="$matrix:$nC"
+                key="$filename:$nC"
                 if [ "$np" -eq 1 ]; then
                     BASELINES["$key"]=$constraint_time
                     speedup=1
@@ -56,11 +56,11 @@ for mtx in "$MTX_DIR"/*.mtx; do
                 fi
 
                 sed -i '$ d' "$OUTCSV"
-
-                echo "$line,$np,$speedup,$efficiency,$extension" >> "$OUTCSV"
+                sparsity=$(awk "BEGIN {printf \"%.6f\", 1.0 - ($matrix_nnz / ($matrix_rows * $matrix_cols))}")
+                echo "$filename,$matrix_rows,$matrix_cols,$matrix_nnz,$sparsity,$nC,$line,$np,$speedup,$efficiency,$extension" >> "$OUTCSV"
             done
         else
-            echo "Skipping: $matrix with $nC constraints (exceeds $matrix_rows rows)"
+            echo "Skipping: $filename with $nC constraints (exceeds $matrix_rows rows)"
         fi
     done
 done
