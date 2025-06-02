@@ -43,12 +43,9 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
         }
     }
 
-    // printf("\n");
-    // printf("Content of %d: \n", rank);
-    // for (int i{rstart}; i < rend; ++i) {
-    //     printf("%d ", i);
-    // }
-    // printf("\n");
+    printf("\n");
+    printf("Content of %d: %d - %d\n", rank, rstart, rend);
+    printf("\n");
 
     MatCreateMPIAIJWithArrays(PETSC_COMM_WORLD,
                               rend - rstart,
@@ -64,7 +61,7 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
     MatGetSize(transformation_matrix_, &m, &n);
 
     if (rank == 0)
-        printf("Transformation Matrix sizes: %d %d\n\n", m, n);
+        printf("Transformation Matrix sizes: %d %d\n", m, n);
 
     MatSetOption(PetscMasterStiffnessEquationAdaptee::transformation_matrix_, MAT_NEW_NONZERO_LOCATIONS, PETSC_TRUE);
 
@@ -181,6 +178,7 @@ void PetscMasterStiffnessEquationAdaptee::ApplyConstraints() {
     // if (rank == 0) std::cout << "_f: " << std::endl;
     // VecView(PetscMasterStiffnessEquationAdaptee::modified_forces_, PETSC_VIEWER_STDOUT_WORLD);
     // if (rank == 0) std::cout << "\n" << std::endl;
+    printf("Process %d finished\n.", rank);
 }
 
 
